@@ -4,20 +4,27 @@ from sklearn.ensemble import RandomForestClassifier
 import joblib, os
 
 print("🔹 Loading dataset...")
+
+# CSV load
 data = pd.read_csv("flood_data.csv")
 
-# Clean non-numeric values
-data = data.apply(pd.to_numeric, errors='coerce')
+# Clean all text and non-numeric issues
+for col in ["rainfall", "humidity", "temperature", "river_level", "pressure", "flood_risk"]:
+    data[col] = pd.to_numeric(data[col], errors="coerce")
+
+# Drop missing rows
 data = data.dropna()
 
-# Split features and target
+# Feature selection
 X = data[["rainfall", "humidity", "temperature", "river_level", "pressure"]]
-y = data["flood_risk"]
+y = data["flood_risk"].astype(int)  # ensure integer labels
 
-print("🔹 Training model...")
+print("✅ Data cleaned successfully!")
+
+# Split and train model
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
-# Train model
+print("🔹 Training model...")
 model = RandomForestClassifier(n_estimators=100, random_state=42)
 model.fit(X_train, y_train)
 
