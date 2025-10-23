@@ -1,8 +1,10 @@
-pandas
-numpy
-scikit-learn
 streamlit
+numpy
+pandas
 joblib
-matplotlib
-seaborn
+requests
 python-dotenv
+twilio
+folium
+streamlit-folium
+scikit-learn
