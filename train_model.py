@@ -4,7 +4,7 @@ from sklearn.ensemble import RandomForestClassifier
 import joblib, os
 
 print("🔹 Loading dataset...")
-df = pd.read_csv("data/flood_data.csv")
+data = pd.read_csv("flood_data.csv")
 
 X = df[["rainfall", "humidity", "temperature", "river_level", "pressure"]]
 y = df["flood_risk"]
@@ -19,3 +19,4 @@ os.makedirs("model", exist_ok=True)
 joblib.dump(model, "model/flood_model.pkl")
 
 print("✅ Model trained successfully and saved to model/flood_model.pkl")
+
