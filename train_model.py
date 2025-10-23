@@ -4,34 +4,28 @@ from sklearn.ensemble import RandomForestClassifier
 import joblib, os
 
 print("🔹 Loading dataset...")
-data = pd.read_csv("flood_data.csv")
 
-# Clean up — remove invalid and non-numeric values
+# Load clean CSV
+data = pd.read_csv("flood_data.csv", skip_blank_lines=True)
+
+# Clean all columns
 for col in ["rainfall", "humidity", "temperature", "river_level", "pressure", "flood_risk"]:
+    data[col] = data[col].astype(str).str.replace(r"[^0-9.\-]", "", regex=True)
     data[col] = pd.to_numeric(data[col], errors="coerce")
 
-# Drop rows with missing or invalid data
-data = data.dropna(subset=["rainfall", "humidity", "temperature", "river_level", "pressure", "flood_risk"])
+# Drop missing rows
+data = data.dropna()
 
-# Ensure correct data types
-data = data.astype({
-    "rainfall": "float64",
-    "humidity": "float64",
-    "temperature": "float64",
-    "river_level": "float64",
-    "pressure": "float64",
-    "flood_risk": "int64"
-})
-
-print(f"✅ Cleaned data: {data.shape[0]} valid rows remain")
-
-# Split features and labels
+# Features & target
 X = data[["rainfall", "humidity", "temperature", "river_level", "pressure"]]
-y = data["flood_risk"]
+y = data["flood_risk"].astype(int)
 
-print("🔹 Training model...")
+print("✅ Data cleaned successfully!")
+
+# Train-test split
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
+# Train model
 model = RandomForestClassifier(n_estimators=100, random_state=42)
 model.fit(X_train, y_train)
 
