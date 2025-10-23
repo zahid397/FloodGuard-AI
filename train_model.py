@@ -1,36 +1,27 @@
 import pandas as pd
 from sklearn.model_selection import train_test_split
 from sklearn.ensemble import RandomForestClassifier
-import joblib, os
+import pickle
+import os
 
-print("🔹 Loading dataset...")
+def train_model():
+    # ডেটাসেট লোড করো
+    df = pd.read_csv("data/flood_data.csv")
 
-# Load clean CSV
-data = pd.read_csv("flood_data.csv", skip_blank_lines=True)
+    # Feature (X) এবং Target (y) আলাদা করো
+    X = df[['rainfall', 'temperature', 'humidity', 'river_level']]
+    y = df['flood_occurred']  # বা তোমার target কলামের নাম
 
-# Clean all columns
-for col in ["rainfall", "humidity", "temperature", "river_level", "pressure", "flood_risk"]:
-    data[col] = data[col].astype(str).str.replace(r"[^0-9.\-]", "", regex=True)
-    data[col] = pd.to_numeric(data[col], errors="coerce")
+    # Train-test split
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
-# Drop missing rows
-data = data.dropna()
+    # মডেল তৈরি ও ট্রেন
+    model = RandomForestClassifier(n_estimators=100, random_state=42)
+    model.fit(X_train, y_train)
 
-# Features & target
-X = data[["rainfall", "humidity", "temperature", "river_level", "pressure"]]
-y = data["flood_risk"].astype(int)
+    # মডেল সংরক্ষণ করো
+    os.makedirs("model", exist_ok=True)
+    with open("model/flood_model.pkl", "wb") as file:
+        pickle.dump(model, file)
 
-print("✅ Data cleaned successfully!")
-
-# Train-test split
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
-
-# Train model
-model = RandomForestClassifier(n_estimators=100, random_state=42)
-model.fit(X_train, y_train)
-
-# Save model
-os.makedirs("model", exist_ok=True)
-joblib.dump(model, "model/flood_model.pkl")
-
-print("✅ Model trained successfully and saved to model/flood_model.pkl")
+    print("✅ Model trained and saved successfully!")
