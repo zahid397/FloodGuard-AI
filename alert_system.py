@@ -1,19 +1,15 @@
 from twilio.rest import Client
+import os
+from dotenv import load_dotenv
 
-def send_sms_alert(message, to_number, from_number, account_sid, auth_token):
-    """
-    Send SMS using Twilio
-    """
-    try:
-        client = Client(account_sid, auth_token)
-        message = client.messages.create(
-            body=message,
-            from_=from_number,
-            to=to_number
-        )
-        return True
-    except Exception as e:
-        print(f"❌ SMS Error: {e}")
-        return False
+load_dotenv()
 
-# For email alert, you could later add SMTP (optional)
+def send_flood_alert(message):
+    account_sid = os.getenv("TWILIO_ACCOUNT_SID")
+    auth_token = os.getenv("TWILIO_AUTH_TOKEN")
+    client = Client(account_sid, auth_token)
+    client.messages.create(
+        body=message,
+        from_=os.getenv("TWILIO_PHONE"),
+        to=os.getenv("ALERT_PHONE")
+    )
