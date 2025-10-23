@@ -1,10 +1,5 @@
 streamlit
-numpy
 pandas
-joblib
-requests
-python-dotenv
-twilio
-folium
-streamlit-folium
 scikit-learn
+requests
+pickle-mixin
