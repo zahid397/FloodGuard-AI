@@ -1,4 +1,4 @@
-import streamlit as st
+    import streamlit as st
 import pandas as pd
 import numpy as np
 import folium
@@ -26,6 +26,22 @@ st.markdown("""
     border-right: 2px solid #64b5f6 !important;
 }
 [data-testid="stSidebar"] * { color: #0d1b2a !important; }
+
+/* ✅ Fix dropdown visibility */
+div[data-baseweb="select"] > div {
+    background-color: #ffffff !important;
+    color: #0d1b2a !important;
+    border-radius: 6px !important;
+    border: 1px solid #1976d2 !important;
+}
+div[data-baseweb="select"] span {
+    color: #0d1b2a !important;
+}
+div[data-baseweb="select"] option {
+    background-color: #ffffff !important;
+    color: #0d1b2a !important;
+}
+
 h1,h2,h3,h4,h5 { color:#0d1b2a !important;font-weight:700 !important; }
 .stButton>button {
     background-color: #1565c0 !important;
@@ -93,7 +109,10 @@ with st.sidebar:
         st.session_state.risk = predict_flood(rain, temp, hum, level)
         if gemini:
             try:
-                prompt = f"Location {loc}, Rain {rain} mm, River {level} m, Humidity {hum}%, Temp {temp} °C. Flood risk {st.session_state.risk}. Give 2 short Bangla safety tips with English translation."
+                prompt = (
+                    f"Location {loc}, Rain {rain} mm, River {level} m, Humidity {hum}%, Temp {temp} °C. "
+                    f"Flood risk {st.session_state.risk}. Give 2 short Bangla safety tips with English translation."
+                )
                 res = gemini.generate_content(prompt)
                 st.session_state.ai_summary = res.text
                 # Short TTS
