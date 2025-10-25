@@ -23,18 +23,13 @@ st.markdown("""
     background-color: #bbdefb !important;
     border-right: 2px solid #64b5f6 !important;
 }
-[data-testid="stSidebar"] * {
-    color: #0a192f !important;
-}
+[data-testid="stSidebar"] * { color: #0a192f !important; }
 div[data-baseweb="select"] > div {
     background-color: #ffffff !important;
     color: #0a192f !important;
     border-radius: 6px !important;
 }
-h1,h2,h3,h4,h5 {
-    color: #0a192f !important;
-    font-weight: 700 !important;
-}
+h1,h2,h3,h4,h5 { color:#0a192f !important;font-weight:700 !important; }
 .stButton>button {
     background-color: #1565c0 !important;
     color: white !important;
@@ -49,14 +44,6 @@ h1,h2,h3,h4,h5 {
     font-weight: 600;
     border-radius: 6px;
     padding: 10px;
-}
-.info-box {
-    background: rgba(219,234,254,0.9);
-    color: #08336e;
-    border-left: 6px solid #1565c0;
-    border-radius: 6px;
-    padding: 10px;
-    font-weight: 600;
 }
 .api-box {
     background: linear-gradient(135deg, #dbeafe 0%, #e8f3ff 100%);
@@ -126,37 +113,11 @@ def init_gemini():
 
 gemini = init_gemini()
 
-# ---------- PREDICT ----------
-def predict_flood(r, t, h, l):
-    s = (r/100)+(l/8)+(h/100)-(t/40)
-    return "High" if s>2 else "Medium" if s>1 else "Low"
-
-# ---------- SIDEBAR ----------
-with st.sidebar:
-    st.header("📥 Flood Risk Inputs")
-    rain = st.slider("🌧️ Rainfall (mm)", 0, 500, 100)
-    temp = st.slider("🌡️ Temperature (°C)", 10, 40, 28)
-    hum = st.slider("💧 Humidity (%)", 30, 100, 85)
-    level = st.slider("🌊 River Level (m)", 0.0, 20.0, 6.0)
-    loc = st.selectbox("📍 Location", ["Dhaka","Sylhet","Rajshahi","Chittagong"])
-    if st.button("🔮 Predict Flood Risk", use_container_width=True):
-        st.session_state.risk = predict_flood(rain,temp,hum,level)
-        if gemini:
-            try:
-                prompt = f"{loc} Flood Forecast — Rain {rain}mm, River {level}m, Humidity {hum}%, Temp {temp}°C, Risk={st.session_state.risk}. Give 2 short Bangla safety tips + English translation."
-                res = gemini.generate_content(prompt)
-                st.session_state.ai_summary = res.text
-                short = res.text.split("\n")[0][:100]
-                tts = gTTS(short, lang="bn")
-                buf = BytesIO(); tts.write_to_fp(buf)
-                st.session_state.audio = buf.getvalue()
-            except Exception as e:
-                st.session_state.ai_summary = f"AI error: {e}"
-
 # ---------- WEATHER ----------
 st.subheader("☁️ Daily Weather & Rainfall Report (OpenWeather)")
 try:
     key = st.secrets.get("OPENWEATHER_KEY")
+    loc = st.session_state.get("loc", "Dhaka")
     if key:
         res = requests.get(f"https://api.openweathermap.org/data/2.5/weather?q={loc}&appid={key}&units=metric").json()
         desc = res["weather"][0]["description"].title()
@@ -201,19 +162,32 @@ st.plotly_chart(fig, use_container_width=True)
 st.subheader("💬 FloodGuard AI Chatbot (Bangla + English)")
 for msg in st.session_state.messages:
     with st.chat_message(msg["role"]): st.markdown(msg["content"])
+
 if q := st.chat_input("Ask a question / প্রশ্ন করুন..."):
     st.session_state.messages.append({"role":"user","content":q})
     with st.chat_message("user"): st.markdown(q)
     with st.chat_message("assistant"):
         if gemini:
             try:
-                reply = gemini.generate_content(f"You are FloodGuard AI (Bangladesh flood expert). Reply in Bangla + English: {q}").text
+                reply = gemini.generate_content(
+                    f"You are FloodGuard AI (Bangladesh flood expert). Reply in Bangla + English: {q}"
+                ).text
+                # 🔊 Generate Bangla voice
+                bangla_text = reply.split("\n")[0][:150]
+                tts = gTTS(bangla_text, lang="bn")
+                buf = BytesIO()
+                tts.write_to_fp(buf)
+                st.audio(buf.getvalue(), format="audio/mp3")
             except Exception as e:
                 reply = f"AI Error: {e}"
-        else: reply = "Demo mode — Gemini API key missing."
+        else:
+            reply = "Demo mode — Gemini API key missing."
         st.markdown(reply)
         st.session_state.messages.append({"role":"assistant","content":reply})
-if st.button("🗑️ Clear Chat"): st.session_state.messages = []; st.rerun()
+
+if st.button("🗑️ Clear Chat"):
+    st.session_state.messages = []
+    st.rerun()
 
 # ---------- FOOTER ----------
 st.divider()
