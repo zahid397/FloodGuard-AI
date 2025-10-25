@@ -10,10 +10,9 @@ from io import BytesIO
 import numpy as np
 from datetime import datetime, timedelta
 
-# ---------- PAGE CONFIG ----------
 st.set_page_config(page_title="FloodGuard AI", page_icon="🌊", layout="wide")
 
-# ---------- THEME (Flood-Safe Blue) ----------
+# ---------- FIXED FLOOD-SAFE THEME ----------
 st.markdown("""
 <style>
 body, .stApp {
@@ -35,13 +34,23 @@ h1, h2, h3, h4, h5, h6, p, span, label, div {
     color: #0a192f !important;
     font-weight: 500 !important;
 }
-[data-testid="stSidebar"] input, 
-[data-testid="stSidebar"] select, 
+[data-testid="stSidebar"] input,
+[data-testid="stSidebar"] select,
 [data-testid="stSidebar"] textarea {
     background-color: #ffffff !important;
     color: #0a192f !important;
     border: 1px solid #0277bd !important;
     border-radius: 6px !important;
+}
+
+/* Dropdown fix */
+.stSelectbox [data-baseweb="select"] div {
+    background-color: #ffffff !important;
+    color: #0a192f !important;
+}
+.stSelectbox [role="option"] {
+    background-color: #ffffff !important;
+    color: #0a192f !important;
 }
 
 /* Buttons */
@@ -73,7 +82,7 @@ h1, h2, h3, h4, h5, h6, p, span, label, div {
     border-radius: 10px !important;
     font-size: 16px !important;
 }
-[data-testid="stChatInput"] textarea::placeholder {color: #333 !important;}
+[data-testid="stChatInput"] textarea::placeholder {color: #555 !important;}
 [data-testid="stChatMessage"] p, [data-testid="stChatMessage"] div {color: #0a192f !important;}
 
 /* Map & Chart */
@@ -206,7 +215,7 @@ with tab2:
 # --- Map
 with tab3:
     st.subheader("🗺️ Interactive Flood Risk Map")
-    bwdb=get_bwdb(); m=folium.Map(location=[23.8,90.4],zoom_start=7,tiles="OpenStreetMap")
+    bwdb=get_bwdb(); m=folium.Map(location=[23.8,90.4],zoom_start=7,tiles="CartoDB positron")
     heat=[]
     for r in bwdb["rivers"]:
         color="red"if r["level"]>r["danger"]else"orange"if r["level"]>r["danger"]*0.9 else"green"
