@@ -4,6 +4,7 @@ import folium
 from folium.plugins import HeatMap
 from streamlit_folium import st_folium
 import google.generativeai as genai
+import plotly.express as px
 from gtts import gTTS
 from io import BytesIO
 import numpy as np
@@ -12,7 +13,7 @@ from datetime import datetime, timedelta
 # ---------- PAGE CONFIG ----------
 st.set_page_config(page_title="FloodGuard AI", page_icon="🌊", layout="wide")
 
-# ---------- THEME ----------
+# ---------- THEME (Flood-Safe Blue) ----------
 st.markdown("""
 <style>
 body, .stApp {
@@ -33,6 +34,14 @@ h1, h2, h3, h4, h5, h6, p, span, label, div {
 [data-testid="stSidebar"] * {
     color: #0a192f !important;
     font-weight: 500 !important;
+}
+[data-testid="stSidebar"] input, 
+[data-testid="stSidebar"] select, 
+[data-testid="stSidebar"] textarea {
+    background-color: #ffffff !important;
+    color: #0a192f !important;
+    border: 1px solid #0277bd !important;
+    border-radius: 6px !important;
 }
 
 /* Buttons */
