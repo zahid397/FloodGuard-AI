@@ -1,4 +1,3 @@
-# app.py
 # FloodGuard AI 🌊 | Streamlit Frontend
 # Developed by Zahid Hasan
 
@@ -7,6 +6,13 @@ import pandas as pd
 import pickle
 import os
 import sys
+
+# ===== 🌊 Streamlit Page Config (must be first) =====
+st.set_page_config(
+    page_title="FloodGuard AI",
+    page_icon="🌧️",
+    layout="centered"
+)
 
 # ===== ✅ Fix Import Path =====
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '')))
@@ -35,7 +41,13 @@ model = None
 if not os.path.exists(MODEL_PATH):
     st.warning("⚠️ Model not found! Training a new one...")
     if train_model:
-        train_model()
+        try:
+            train_model()
+            with open(MODEL_PATH, "rb") as file:
+                model = pickle.load(file)
+            st.success("✅ Model trained successfully!")
+        except Exception as e:
+            st.error(f"❌ Model training failed: {e}")
     else:
         st.error("❌ train_model() not found. Please check 'model/train_model.py'.")
 else:
@@ -45,13 +57,7 @@ else:
     except Exception as e:
         st.error(f"❌ Failed to load model: {e}")
 
-# ===== 🌊 Streamlit Page Config =====
-st.set_page_config(
-    page_title="FloodGuard AI",
-    page_icon="🌧️",
-    layout="centered"
-)
-
+# ===== 🌊 App Title & Description =====
 st.title("🌊 FloodGuard AI - Smart Flood Prediction System")
 st.write("এই অ্যাপটি রিয়েল-টাইম আবহাওয়া ও নদীর তথ্য বিশ্লেষণ করে বন্যার ঝুঁকি অনুমান করে।")
 
@@ -68,7 +74,7 @@ if st.button("🔮 Predict Flood Risk"):
     if model is None:
         st.error("❌ Model not loaded. Please ensure 'flood_model.pkl' exists.")
     else:
-        # ✅ Correct feature names (match training set)
+        # ✅ Correct column names (match training data)
         input_data = pd.DataFrame(
             [[rainfall, temperature, humidity, river_level]],
             columns=["rainfall_mm", "temperature_c", "humidity_percent", "water_level_m"]
