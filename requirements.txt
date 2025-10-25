@@ -1,10 +1,21 @@
-streamlit==1.39.0
-pandas==2.2.3
+# Core libraries
 numpy==1.26.4
+pandas==2.2.3
 scikit-learn==1.5.2
-folium==0.17.0
-streamlit-folium==0.22.0
-plotly==5.24.1
 requests==2.32.3
-gTTS==2.5.1
-google-generativeai==0.5.4
+
+# Visualization
+matplotlib==3.9.2
+plotly==5.24.1
+folium==0.17.0
+streamlit-folium==0.21.0
+
+# Streamlit + extensions
+streamlit==1.39.0
+gtts==2.5.1
+
+# Google Gemini API
+google-generativeai==0.7.2
+
+# Utility
+joblib==1.4.2
