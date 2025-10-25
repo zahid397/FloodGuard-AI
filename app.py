@@ -1,4 +1,4 @@
-    import streamlit as st
+import streamlit as st
 import pandas as pd
 import numpy as np
 import folium
@@ -205,3 +205,4 @@ st.markdown("""
 🌊 **FloodGuard AI © 2026** | Developed by **Zahid Hasan** 💻  
 🔗 [GitHub Repository](https://github.com/zahid397/FloodGuard-AI)
 """, unsafe_allow_html=True)
+
