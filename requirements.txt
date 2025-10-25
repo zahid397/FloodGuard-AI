@@ -1,7 +1,11 @@
-streamlit
-streamlit-autorefresh
-streamlit-folium
-pandas
-numpy
-folium
-pickle5
+# FloodGuard AI Dependencies (Stable with Streamlit Cloud)
+streamlit==1.39.0
+streamlit-autorefresh==1.0.1
+streamlit-folium==0.22.0
+folium==0.17.0
+pandas==2.2.3
+numpy==1.26.4
+scikit-learn==1.5.2
+requests==2.32.3
+pickle5==0.0.11
+python-dateutil==2.9.0
