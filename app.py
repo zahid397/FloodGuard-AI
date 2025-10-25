@@ -25,19 +25,13 @@ st.markdown("""
 }
 [data-testid="stSidebar"] * {
     color: #0a192f !important;
-    font-weight: 500 !important;
 }
 div[data-baseweb="select"] > div {
     background-color: #ffffff !important;
     color: #0a192f !important;
     border-radius: 6px !important;
 }
-h1 {
-    color: #0a192f !important;
-    text-align: center;
-    font-weight: 800 !important;
-}
-h2, h3, h4, h5 {
+h1,h2,h3,h4,h5 {
     color: #0a192f !important;
     font-weight: 700 !important;
 }
@@ -51,7 +45,6 @@ h2, h3, h4, h5 {
     border-radius: 8px;
     padding: 6px 10px;
     display: inline-block;
-    margin-bottom: 10px;
 }
 .stButton>button {
     background-color: #1565c0 !important;
@@ -60,11 +53,25 @@ h2, h3, h4, h5 {
     font-weight: 600;
 }
 .stButton>button:hover { background-color: #0d47a1 !important; }
+.success-box {
+    background-color: white;
+    border-left: 6px solid #4caf50;
+    color: #1b5e20;
+    font-weight: 600;
+    border-radius: 6px;
+    padding: 10px;
+}
+.info-box {
+    background-color: #dbeafe;
+    color: #0a192f;
+    border-left: 6px solid #1565c0;
+    border-radius: 6px;
+    padding: 10px;
+    font-weight: 600;
+}
 @media (max-width:768px){
-    .stApp { font-size:15px!important; }
-    h1,h2,h3{ font-size:20px!important; }
-    .subtitle{ font-size:14px!important; }
-    .stButton>button{ width:100%!important; }
+    .stApp {font-size:15px!important;}
+    .stButton>button{width:100%!important;}
 }
 </style>
 """, unsafe_allow_html=True)
@@ -75,15 +82,7 @@ st.markdown("""
 🌊 FloodGuard AI – Hackathon Pro Final 2026
 </h1>
 
-<p style='text-align:center;
-    font-size:17px;
-    color:#08336e;
-    font-weight:700;
-    text-shadow:0px 0px 6px rgba(255,255,255,0.9);
-    background:rgba(187,222,251,0.6);
-    border-radius:8px;
-    padding:6px 10px;
-    display:inline-block;'>
+<p class='subtitle'>
 💻 Zahid Hasan | Gemini 2.5 Flash ⚡ | Smart Dashboard 📊 | Weather ☁️ | River Board 🌊
 </p>
 """, unsafe_allow_html=True)
@@ -103,7 +102,7 @@ def init_gemini():
             return None
         genai.configure(api_key=key)
         model = genai.GenerativeModel("gemini-2.5-flash")
-        st.success("✅ Gemini 2.5 Flash Connected")
+        st.markdown("<div class='success-box'>✅ Gemini 2.5 Flash Connected</div>", unsafe_allow_html=True)
         return model
     except Exception as e:
         st.error(f"Gemini setup failed → {e}")
@@ -139,18 +138,28 @@ with st.sidebar:
                 st.session_state.ai_summary = f"AI error: {e}"
 
 # ---------- FORECAST ----------
+st.markdown("<br>", unsafe_allow_html=True)
 st.subheader(f"📍 {loc} Flood Forecast")
+
 risk = st.session_state.risk
 cmap = {"Low":"#4caf50","Medium":"#ff9800","High":"#f44336"}
+
+st.markdown("<div style='background-color:#eef7ff;border-radius:10px;padding:12px 15px;margin-top:10px;box-shadow:0 2px 6px rgba(0,0,0,0.08);'>", unsafe_allow_html=True)
+
 if risk=="N/A":
-    st.info("👉 Use sidebar to predict flood risk.")
+    st.markdown("<div class='info-box'>👉 Use sidebar to predict flood risk.</div>", unsafe_allow_html=True)
 else:
     st.markdown(f"<h3 style='color:{cmap[risk]};text-align:center;'>🌀 {risk} Flood Risk</h3>", unsafe_allow_html=True)
     if risk=="High": st.error("🚨 HIGH RISK! Move to higher ground immediately.")
     elif risk=="Medium": st.warning("⚠️ Moderate risk — Stay alert.")
     else: st.success("✅ Low risk — Safe conditions.")
-if st.session_state.ai_summary: st.write(st.session_state.ai_summary)
-if st.session_state.audio: st.audio(st.session_state.audio, format="audio/mp3")
+
+if st.session_state.ai_summary:
+    st.markdown(f"<div style='background-color:#f0f9ff;padding:10px;border-radius:8px;margin-top:10px;'>{st.session_state.ai_summary}</div>", unsafe_allow_html=True)
+if st.session_state.audio:
+    st.audio(st.session_state.audio, format="audio/mp3")
+
+st.markdown("</div>", unsafe_allow_html=True)
 
 # ---------- RIVER BOARD ----------
 st.subheader("🌊 River Status Board (Live Simulation)")
