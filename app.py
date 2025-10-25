@@ -4,50 +4,52 @@ import folium
 from folium.plugins import HeatMap
 from streamlit_folium import st_folium
 import numpy as np
-from datetime import datetime, timedelta
 import plotly.express as px
-from io import BytesIO
-from gtts import gTTS
+from datetime import datetime, timedelta
 import google.generativeai as genai
 
 st.set_page_config(page_title="FloodGuard AI", page_icon="🌊", layout="wide")
 
-# ---------- THEME FIX ----------
+# ---------- STYLE ----------
 st.markdown("""
 <style>
 body,.stApp{background-color:#e0f7fa!important;color:#00334d!important;font-family:'Inter',sans-serif;}
 footer{visibility:hidden;}
 h1,h2,h3,h4,h5,h6,p,span,label,div{color:#00334d!important;}
-/* Sidebar */
 [data-testid="stSidebar"]{background:#b3e5fc!important;border-right:1px solid #81d4fa!important;}
 [data-testid="stSidebar"] *{color:#00334d!important;font-weight:500!important;}
-/* Fix dark selectbox input */
 .stSelectbox div[data-baseweb="select"]>div{
-    background:#ffffff!important;
-    color:#00334d!important;
-    border:1px solid #0277bd!important;
-    border-radius:8px!important;
+    background:#fff!important;color:#00334d!important;
+    border:1px solid #0277bd!important;border-radius:8px!important;
 }
-/* Buttons */
-.stButton>button{background:#0277bd!important;color:#fff!important;border-radius:8px;font-weight:600;}
+.stButton>button{background:#0277bd!important;color:white!important;border-radius:8px;font-weight:600!important;}
 .stButton>button:hover{background:#01579b!important;}
-/* Tabs */
 .stTabs [data-baseweb="tab-list"] button{background:#b3e5fc!important;color:#00334d!important;border-radius:8px;}
 .stTabs [aria-selected="true"]{background:#81d4fa!important;color:#002244!important;border:1px solid #0277bd40!important;}
-/* Map visible background */
-.leaflet-container{background:#d9f0ff!important;border-radius:12px!important;}
-.leaflet-popup-content-wrapper,.leaflet-popup-tip{background:#fff!important;color:#00334d!important;}
+.leaflet-container{background:#d9f0ff!important;border-radius:12px!important;min-height:520px!important;}
+.leaflet-popup-content-wrapper,.leaflet-popup-tip{background:#ffffff!important;color:#00334d!important;}
+@media (max-width:768px){.leaflet-container{min-height:420px!important;}body{font-size:15px!important;}}
 </style>
 """, unsafe_allow_html=True)
 
 # ---------- HEADER ----------
-st.title("🌊 FloodGuard AI – Hackathon Stable 2026")
-st.caption("💻 Zahid Hasan | Gemini Flash + BWDB Mock + Voice + Map + Smart Alerts")
+st.title("🌊 FloodGuard AI – Hackathon Final 2026")
+st.caption("💻 Zahid Hasan | Gemini Flash + BWDB Mock + Map + Chatbot + Smart Alerts")
 
 # ---------- SESSION ----------
-for k in ["risk","ai_summary","audio","messages"]:
+for k in ["risk","messages"]:
     if k not in st.session_state:
-        st.session_state[k]="N/A" if k=="risk" else None if k in["ai_summary","audio"] else []
+        st.session_state[k]="N/A" if k=="risk" else []
+
+# ---------- Gemini Chat init ----------
+@st.cache_resource
+def init_gemini():
+    try:
+        genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
+        return genai.GenerativeModel("gemini-2.5-flash")
+    except:
+        return None
+gemini = init_gemini()
 
 # ---------- MOCK DATA ----------
 @st.cache_data(ttl=300)
@@ -71,19 +73,21 @@ hum=st.sidebar.slider("💧 Humidity (%)",30,100,85)
 level=st.sidebar.slider("🌊 River Level (m)",0.0,20.0,5.0)
 loc=st.sidebar.selectbox("📍 Location",["Dhaka","Sylhet","Rajshahi","Chittagong"])
 if st.sidebar.button("🔮 Predict Flood Risk",use_container_width=True):
-    st.session_state.risk=simple_predict(rain,temp,hum,level)
+    st.session_state["risk"]=simple_predict(rain,temp,hum,level)
 
 # ---------- TABS ----------
-tab1,tab2,tab3=st.tabs(["🔮 Prediction","📊 Dashboard","🗺️ Map"])
+tab1,tab2,tab3,tab4=st.tabs(["🔮 Prediction","📊 Dashboard","🗺️ Map","💬 Chatbot"])
 
 # --- Prediction ---
 with tab1:
     st.subheader(f"📍 {loc} Flood Forecast")
-    r=st.session_state.risk
+    r=st.session_state.get("risk","N/A")
     if r!="N/A":
         col={"Low":"#4caf50","Medium":"#ff9800","High":"#f44336"}[r]
         st.markdown(f"<h3 style='color:{col};'>🌀 {r} Flood Risk</h3>",unsafe_allow_html=True)
-        st.info("✅ Safe conditions" if r=="Low" else "⚠️ Stay alert" if r=="Medium" else "🚨 High risk! Evacuate low areas")
+        if r=="High": st.error("🚨 HIGH RISK! Move to higher ground.")
+        elif r=="Medium": st.warning("⚠️ Moderate risk — Stay alert.")
+        else: st.success("✅ Low risk — Safe conditions.")
 
 # --- Dashboard ---
 with tab2:
@@ -94,7 +98,9 @@ with tab2:
     })
     df["Risk"]=df["Rainfall (mm)"].apply(lambda x:"Low"if x<60 else"Medium"if x<120 else"High")
     fig=px.line(df,x="Date",y="Rainfall (mm)",color="Risk",
-        color_discrete_map={"Low":"#4caf50","Medium":"#ff9800","High":"#f44336"})
+        color_discrete_map={"Low":"#4caf50","Medium":"#ff9800","High":"#f44336"},
+        title="Rainfall & Flood Risk Trend")
+    fig.update_layout(plot_bgcolor="#f5f5f5",paper_bgcolor="#f5f5f5")
     st.plotly_chart(fig,use_container_width=True)
 
 # --- Map ---
@@ -109,13 +115,31 @@ with tab3:
         folium.Marker(
             r["loc"],
             tooltip=f"{r['name']} – {r['level']} m",
-            popup=f"<b>{r['name']}</b><br>Station:{r['station']}<br>Level:{r['level']} m<br>Danger:{r['danger']} m<br>Risk:{risk}",
+            popup=f"<b>{r['name']}</b><br>Station:{r['station']}<br>Level:{r['level']}m<br>Danger:{r['danger']}m<br>Risk:{risk}",
             icon=folium.Icon(color=color,icon="tint",prefix="fa")
         ).add_to(m)
         pts=70 if risk=="High" else 50 if risk=="Medium" else 30
         heat.extend(np.random.normal(loc=r["loc"],scale=[0.4,0.4],size=(pts,2)).tolist())
-    if heat: HeatMap(heat,radius=18,blur=15,min_opacity=0.3).add_to(m)
-    st_folium(m,width="100%",height=550)
+    if heat: HeatMap(heat,radius=18,blur=15,min_opacity=0.25).add_to(m)
+    st_folium(m,width="100%",height=540)
+
+# --- Chatbot ---
+with tab4:
+    st.subheader("💬 FloodGuard AI Chatbot (Bangla + English)")
+    for msg in st.session_state.messages:
+        with st.chat_message(msg["role"]): st.markdown(msg["content"])
+    if q:=st.chat_input("প্রশ্ন করুন / Ask a question..."):
+        st.session_state.messages.append({"role":"user","content":q})
+        with st.chat_message("user"): st.markdown(q)
+        with st.chat_message("assistant"):
+            if gemini:
+                res=gemini.generate_content(f"You are FloodGuard AI (Bangladesh flood expert). Answer shortly in Bangla + English: {q}")
+                ans=res.text; st.markdown(ans)
+                st.session_state.messages.append({"role":"assistant","content":ans})
+            else:
+                st.info("🌐 Gemini API not active — demo mode running.")
+    if st.button("🗑️ Clear Chat History"):
+        st.session_state.messages=[]; st.rerun()
 
 st.divider()
 st.caption("🌊 FloodGuard AI © 2026 | Developed by Zahid Hasan 💻")
