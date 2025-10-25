@@ -39,8 +39,11 @@ if not os.path.exists(MODEL_PATH):
     else:
         st.error("❌ train_model() not found. Please check 'model/train_model.py'.")
 else:
-    with open(MODEL_PATH, "rb") as file:
-        model = pickle.load(file)
+    try:
+        with open(MODEL_PATH, "rb") as file:
+            model = pickle.load(file)
+    except Exception as e:
+        st.error(f"❌ Failed to load model: {e}")
 
 # ===== 🌊 Streamlit Page Config =====
 st.set_page_config(
@@ -65,18 +68,20 @@ if st.button("🔮 Predict Flood Risk"):
     if model is None:
         st.error("❌ Model not loaded. Please ensure 'flood_model.pkl' exists.")
     else:
-        # ইনপুট ডেটাফ্রেম তৈরি
+        # ✅ Correct feature names (match training set)
         input_data = pd.DataFrame(
             [[rainfall, temperature, humidity, river_level]],
-            columns=["rainfall", "temperature", "humidity", "river_level"]
+            columns=["rainfall_mm", "temperature_c", "humidity_percent", "water_level_m"]
         )
 
         try:
             prediction = model.predict(input_data)[0]
-            if prediction == 1:
-                st.error("🚨 High Risk: Flood likely to occur!")
+            if prediction == 2:
+                st.error("🚨 HIGH RISK: Flood likely to occur! Stay alert.")
+            elif prediction == 1:
+                st.warning("⚠️ MEDIUM RISK: Monitor water levels closely.")
             else:
-                st.success("✅ Low Risk: No flood expected.")
+                st.success("✅ LOW RISK: No flood expected.")
         except Exception as e:
             st.warning(f"⚠️ Prediction failed: {e}")
 
@@ -85,8 +90,11 @@ if st.checkbox("📡 Show Live Weather & River Data"):
     st.subheader("🌦 Current Weather Data")
     if get_weather_data:
         try:
-            weather = get_weather_data()
-            st.json(weather)
+            weather = get_weather_data("Dhaka")
+            if "error" in weather:
+                st.warning(weather["error"])
+            else:
+                st.json(weather)
         except Exception as e:
             st.warning(f"Weather API not available: {e}")
     else:
@@ -95,8 +103,11 @@ if st.checkbox("📡 Show Live Weather & River Data"):
     st.subheader("🌊 River Data")
     if get_river_data:
         try:
-            river = get_river_data()
-            st.json(river)
+            river = get_river_data("Dhaka")
+            if "error" in river:
+                st.warning(river["error"])
+            else:
+                st.json(river)
         except Exception as e:
             st.warning(f"River API not available: {e}")
     else:
