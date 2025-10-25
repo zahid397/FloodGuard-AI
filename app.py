@@ -1,3 +1,4 @@
+# 🌊 FloodGuard AI – Gemini Flash Edition 2026 (Professional White UI)
 import streamlit as st
 import pandas as pd
 import folium
@@ -11,9 +12,33 @@ import plotly.express as px
 import numpy as np
 from datetime import datetime, timedelta
 
-# ========== PAGE CONFIG ==========
+# ---------- PAGE CONFIG ----------
 st.set_page_config(page_title="FloodGuard AI", page_icon="🌊", layout="wide")
-st.markdown("<style>body{background:#e6f3ff}.stApp{background:#e6f3ff}</style>", unsafe_allow_html=True)
+st.markdown("""
+<style>
+body, .stApp { background-color: #ffffff; color: #0d1b2a; font-family: 'Inter', sans-serif; }
+h1, h2, h3, h4, h5, h6, p, div, label, span { color: #0d1b2a !important; }
+.stTabs [data-baseweb="tab-list"] button {
+    background-color: #f8fafc !important;
+    color: #0d1b2a !important;
+    border-radius: 10px;
+    padding: 6px 16px !important;
+}
+.stTabs [aria-selected="true"] {
+    background-color: #e6f0ff !important;
+    color: #003366 !important;
+    font-weight: 600 !important;
+    border: 1px solid #007bff40 !important;
+}
+.stMetric {
+    background-color: #f8f9fa !important;
+    border-radius: 12px !important;
+    padding: 10px !important;
+}
+footer {visibility: hidden;}
+</style>
+""", unsafe_allow_html=True)
+
 st.title("🌊 FloodGuard AI – Gemini Flash Edition 2026")
 st.caption("💻 Zahid Hasan | Gemini 2.5/1.5 Flash + BWDB/NASA Mock + Voice + Gradient HeatMap + Smart Alerts")
 
@@ -29,10 +54,10 @@ def init_gemini():
         genai.configure(api_key=st.secrets.get("GEMINI_API_KEY"))
         try:
             model = genai.GenerativeModel("gemini-2.5-flash")
-            st.success("✅ Gemini 2.5 Flash loaded")
+            st.success("✅ Gemini 2.5 Flash model loaded")
         except Exception:
             model = genai.GenerativeModel("gemini-1.5-flash")
-            st.warning("⚠️ Using Gemini 1.5 Flash (fallback)")
+            st.warning("⚠️ Using Gemini 1.5 Flash (stable fallback)")
         return model
     except Exception as e:
         st.error(f"Gemini setup failed → {e}")
@@ -45,36 +70,36 @@ def get_bwdb():
     f = np.random.uniform(-0.5, 0.5)
     return {
         "rivers": [
-            {"name":"Padma","station":"Goalundo","level":round(8.4+f,2),"danger":10.5,"loc":[23.75,89.75]},
-            {"name":"Jamuna","station":"Sirajganj","level":round(9.0+f,2),"danger":11.0,"loc":[24.45,89.70]},
-            {"name":"Meghna","station":"Ashuganj","level":round(7.6+f,2),"danger":9.2,"loc":[24.02,91.00]},
+            {"name": "Padma", "station": "Goalundo", "level": round(8.4+f, 2), "danger": 10.5, "loc": [23.75, 89.75]},
+            {"name": "Jamuna", "station": "Sirajganj", "level": round(9.0+f, 2), "danger": 11.0, "loc": [24.45, 89.70]},
+            {"name": "Meghna", "station": "Ashuganj", "level": round(7.6+f, 2), "danger": 9.2, "loc": [24.02, 91.00]},
         ]
     }
 
 # ---------- MODEL ----------
 @st.cache_resource
 def load_model():
-    p="model/flood_model.pkl"
+    p = "model/flood_model.pkl"
     if os.path.exists(p):
         try:
-            with open(p,"rb") as f: return pickle.load(f)
+            with open(p, "rb") as f: return pickle.load(f)
         except Exception as e: st.warning(f"Model load error: {e}")
     return None
 model = load_model()
 
-def simple_predict(r,t,h,l):
-    s=(r/100)+(l/8)+(h/100)-(t/40)
+def simple_predict(r, t, h, l):
+    s = (r/100)+(l/8)+(h/100)-(t/40)
     return "High" if s>2 else "Medium" if s>1 else "Low"
 
 # ---------- SIDEBAR ----------
 st.sidebar.header("📥 Input Parameters")
-rain=st.sidebar.slider("🌧️ Rainfall (mm)",0,500,50)
-temp=st.sidebar.slider("🌡️ Temp (°C)",10,40,27)
-hum=st.sidebar.slider("💧 Humidity (%)",30,100,85)
-level=st.sidebar.slider("🌊 River Level (m)",0.0,20.0,5.0)
-loc=st.sidebar.selectbox("📍 Location",["Dhaka","Sylhet","Rajshahi","Chittagong"])
+rain = st.sidebar.slider("🌧️ Rainfall (mm)", 0, 500, 50)
+temp = st.sidebar.slider("🌡️ Temp (°C)", 10, 40, 27)
+hum = st.sidebar.slider("💧 Humidity (%)", 30, 100, 85)
+level = st.sidebar.slider("🌊 River Level (m)", 0.0, 20.0, 5.0)
+loc = st.sidebar.selectbox("📍 Location", ["Dhaka", "Sylhet", "Rajshahi", "Chittagong"])
 
-if st.sidebar.button("🔮 Predict Flood Risk",use_container_width=True):
+if st.sidebar.button("🔮 Predict Flood Risk", use_container_width=True):
     st.session_state.ai_summary=None; st.session_state.audio=None
     try:
         if model:
@@ -132,9 +157,9 @@ with tab2:
     df=pd.DataFrame({"Date":days,"Rainfall (mm)":rain_d})
     df["Risk"]=df["Rainfall (mm)"].apply(lambda r:"Low"if r<60 else"Medium"if r<120 else"High")
     fig=px.line(df,x="Date",y="Rainfall (mm)",color="Risk",
-        color_discrete_map={"Low":"green","Medium":"orange","High":"red"},
+        color_discrete_map={"Low":"#28a745","Medium":"#ffc107","High":"#dc3545"},
         title="Rainfall & Flood Risk Trend (Simulated)")
-    fig.add_hline(y=120,line_dash="dash",line_color="red",annotation_text="High Risk")
+    fig.update_layout(plot_bgcolor="white", paper_bgcolor="white")
     st.plotly_chart(fig,use_container_width=True)
 
 # --- Map
@@ -178,22 +203,20 @@ with tab4:
 
 # ---------- FOOTER ----------
 st.divider()
-st.caption(
-    "🌊 FloodGuard AI © 2025-26 | Gemini 2.5/1.5 Flash + Mock BWDB/NASA "
-    "| Developed by Zahid Hasan 💻 | [GitHub](https://github.com/zahid397/FloodGuard-AI)"
-)
+st.caption("🌊 FloodGuard AI © 2025-26 | Gemini 2.5/1.5 Flash + Mock BWDB/NASA | Developed by Zahid Hasan 💻 | [GitHub](https://github.com/zahid397/FloodGuard-AI)")
 
 # ---------- NASA EXPANDER ----------
 with st.expander("🛰️ NASA Flood Sim"):
     nasa_df = pd.DataFrame({
-        "Basin": ["Sylhet", "Barisal", "Dhaka"],
-        "Extent km²": [250, 120, 80],
-        "Severity": ["High", "Medium", "Low"]
+        "Basin": ["Sylhet","Barisal","Dhaka"],
+        "Extent km²": [250,120,80],
+        "Severity": ["High","Medium","Low"]
     })
     fig_n = px.bar(
         nasa_df, x="Basin", y="Extent km²", color="Severity",
-        color_discrete_map={"High": "red", "Medium": "orange", "Low": "green"},
+        color_discrete_map={"High":"red","Medium":"orange","Low":"green"},
         title="NASA Flood Extent Simulation"
     )
+    fig_n.update_layout(plot_bgcolor="white", paper_bgcolor="white")
     st.plotly_chart(fig_n, use_container_width=True)
-    st.markdown("[Explore Real NASA GPM Data →](https://gpm.nasa.gov/)")
+    st.markdown("[🌐 Explore Real NASA GPM Data →](https://gpm.nasa.gov/)")
