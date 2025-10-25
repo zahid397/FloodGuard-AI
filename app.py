@@ -1,4 +1,4 @@
-# app.py — FloodGuard AI (Final Hackathon Version)
+# app.py — FloodGuard AI (Hackathon Pro Edition 2026)
 import streamlit as st
 import pandas as pd
 import folium
@@ -18,7 +18,7 @@ st.set_page_config(page_title="FloodGuard AI", page_icon="🌊", layout="wide")
 st.markdown("""
 <style>
 body, .stApp {
-    background-color: #d9f5ff !important;
+    background-color: #dff9fb !important;
     color: #0a192f !important;
     font-family: 'Inter', sans-serif;
 }
@@ -33,7 +33,9 @@ h1, h2, h3, h4, h5, h6, p, span, label, div { color: #0a192f !important; }
 [data-testid="stSidebar"] * { color: #0a192f !important; font-weight: 500 !important; }
 
 /* Inputs & Dropdowns */
-[data-testid="stSidebar"] input, [data-testid="stSidebar"] select, [data-testid="stSidebar"] textarea {
+[data-testid="stSidebar"] input,
+[data-testid="stSidebar"] select,
+[data-testid="stSidebar"] textarea {
     background-color: #ffffff !important;
     color: #0a192f !important;
     border: 1px solid #0277bd !important;
@@ -64,11 +66,12 @@ div[data-baseweb="select"] > div {
     border: 1px solid #0277bd40 !important;
 }
 
-/* Map */
+/* Map Container */
 .leaflet-container {
     background: #ffffff !important;
     border: 2px solid #0277bd !important;
-    border-radius: 10px;
+    border-radius: 12px !important;
+    min-height: 500px !important;
 }
 
 /* Plotly */
@@ -159,12 +162,7 @@ tab1,tab2,tab3,tab4=st.tabs(["🔮 Prediction","📊 Dashboard","🗺️ Map","�
 with tab3:
     st.subheader("🗺️ Interactive Flood Risk Map")
     bwdb=get_bwdb()
-    # Map focus on Bangladesh
     m=folium.Map(location=[23.7,90.3],zoom_start=7,tiles="CartoDB positron")
-    folium.TileLayer(
-        tiles="https://tile.openstreetmap.org/{z}/{x}/{y}.png",
-        attr="© OpenStreetMap contributors"
-    ).add_to(m)
     heat=[]
     for r in bwdb["rivers"]:
         color="red"if r["level"]>r["danger"]else"orange"if r["level"]>r["danger"]*0.9 else"green"
@@ -175,11 +173,11 @@ with tab3:
             icon=folium.Icon(color=color,icon="tint",prefix="fa")
         ).add_to(m)
         pts=70 if color=="red" else 50 if color=="orange" else 30
-        heat.extend(np.random.normal(loc=r["loc"],scale=[0.5,0.5],size=(pts,2)).tolist())
+        heat.extend(np.random.normal(loc=r["loc"],scale=[0.4,0.4],size=(pts,2)).tolist())
     if heat:
-        HeatMap(heat,radius=20,blur=15,min_opacity=0.25,
+        HeatMap(heat,radius=20,blur=15,min_opacity=0.3,
             gradient={0.2:'#4caf50',0.5:'#ff9800',0.8:'#f44336'}).add_to(m)
-        st_folium(m,width="100%",height=520)
+        st_folium(m,width="100%",height=540)
         st.success("🌍 Map rendered successfully ✅")
     else:
         st.warning("⚠️ No map data — try predicting again.")
