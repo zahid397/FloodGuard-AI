@@ -7,9 +7,14 @@ import requests
 import google.generativeai as genai
 from gtts import gTTS
 from io import BytesIO
+from streamlit_autorefresh import st_autorefresh
 
 # ---------- PAGE CONFIG ----------
 st.set_page_config(page_title="FloodGuard AI", page_icon="🌊", layout="wide")
+
+# ---------- AUTO REFRESH ----------
+# প্রতি 30 মিনিটে weather data auto update হবে 🌦️
+st_autorefresh(interval=30 * 60 * 1000, key="auto_weather_refresh")
 
 # ---------- STYLE ----------
 st.markdown("""
@@ -55,13 +60,14 @@ h1,h2,h3,h4,h5 { color:#0a192f !important;font-weight:700 !important; }
     backdrop-filter: blur(6px);
 }
 .api-box {
-    background: rgba(219,234,254,0.85);
-    border-left: 5px solid #0d47a1;
+    background: linear-gradient(135deg, #dbeafe 0%, #e8f3ff 100%);
+    border-left: 6px solid #0d47a1;
     color: #0a192f;
     border-radius: 8px;
     padding: 12px;
     font-weight: 600;
-    box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+    box-shadow: 0 3px 6px rgba(0,0,0,0.05);
+    backdrop-filter: blur(4px);
 }
 @media (max-width:768px){
     .stApp {font-size:15px!important;}
@@ -111,7 +117,7 @@ def init_gemini():
 
 gemini = init_gemini()
 
-# ---------- SIMPLE PREDICT ----------
+# ---------- FLOOD PREDICT ----------
 def predict_flood(r, t, h, l):
     s = (r/100)+(l/8)+(h/100)-(t/40)
     return "High" if s>2 else "Medium" if s>1 else "Low"
@@ -138,29 +144,25 @@ with st.sidebar:
             except Exception as e:
                 st.session_state.ai_summary = f"AI error: {e}"
 
-# ---------- FORECAST ----------
-st.markdown("<br>", unsafe_allow_html=True)
-st.subheader(f"📍 {loc} Flood Forecast")
-
-risk = st.session_state.risk
-cmap = {"Low":"#4caf50","Medium":"#ff9800","High":"#f44336"}
-
-st.markdown("<div style='background-color:#eef7ff;border-radius:10px;padding:12px 15px;margin-top:10px;box-shadow:0 2px 6px rgba(0,0,0,0.08);'>", unsafe_allow_html=True)
-
-if risk=="N/A":
-    st.markdown("<div class='info-box'>👉 Use sidebar to predict flood risk.</div>", unsafe_allow_html=True)
-else:
-    st.markdown(f"<h3 style='color:{cmap[risk]};text-align:center;'>🌀 {risk} Flood Risk</h3>", unsafe_allow_html=True)
-    if risk=="High": st.error("🚨 HIGH RISK! Move to higher ground immediately.")
-    elif risk=="Medium": st.warning("⚠️ Moderate risk — Stay alert.")
-    else: st.success("✅ Low risk — Safe conditions.")
-
-if st.session_state.ai_summary:
-    st.markdown(f"<div style='background-color:#f0f9ff;padding:10px;border-radius:8px;margin-top:10px;'>{st.session_state.ai_summary}</div>", unsafe_allow_html=True)
-if st.session_state.audio:
-    st.audio(st.session_state.audio, format="audio/mp3")
-
-st.markdown("</div>", unsafe_allow_html=True)
+# ---------- WEATHER (AUTO REFRESH) ----------
+st.subheader("☁️ Daily Weather & Rainfall Report (OpenWeather)")
+try:
+    key = st.secrets.get("OPENWEATHER_KEY")
+    if key:
+        res = requests.get(f"https://api.openweathermap.org/data/2.5/weather?q={loc}&appid={key}&units=metric").json()
+        desc = res["weather"][0]["description"].title()
+        tempn = res["main"]["temp"]; hum = res["main"]["humidity"]
+        rain_mm = res.get("rain",{}).get("1h",0); wind = res["wind"]["speed"]
+        st.success(f"🌤️ {desc} | 🌡️ {tempn}°C | 💧 {hum}% | 🌧️ {rain_mm}mm/h | 💨 {wind}m/s")
+    else:
+        st.markdown("""
+        <div class='api-box'>
+        ⚙️ <b>OpenWeather API not set</b> — showing simulated data.<br>
+        🌥️ Cloudy | 🌡️ 29°C | 💧 83% | 🌧️ 2mm/h | 💨 5m/s
+        </div>
+        """, unsafe_allow_html=True)
+except Exception as e:
+    st.warning(f"Weather fetch failed: {e}")
 
 # ---------- RIVER BOARD ----------
 st.subheader("🌊 River Status Board (Live Simulation)")
@@ -174,21 +176,6 @@ for r in rivers:
 df = pd.DataFrame(rivers)
 st.dataframe(df.rename(columns={"name":"River","station":"Station","level":"Level (m)","danger":"Danger (m)","risk":"Risk"}),
              use_container_width=True, hide_index=True)
-
-# ---------- WEATHER ----------
-st.subheader("☁️ Daily Weather & Rainfall Report (OpenWeather)")
-try:
-    key = st.secrets.get("OPENWEATHER_KEY")
-    if key:
-        res = requests.get(f"https://api.openweathermap.org/data/2.5/weather?q={loc}&appid={key}&units=metric").json()
-        desc = res["weather"][0]["description"].title()
-        tempn = res["main"]["temp"]; hum = res["main"]["humidity"]
-        rain_mm = res.get("rain",{}).get("1h",0); wind = res["wind"]["speed"]
-        st.success(f"🌤️ {desc} | 🌡️ {tempn}°C | 💧 {hum}% | 🌧️ {rain_mm}mm/h | 💨 {wind}m/s")
-    else:
-        st.markdown("<div class='api-box'>⚙️ OpenWeather API not set — showing simulated data.<br>🌥️ Cloudy | 🌡️ 29°C | 💧 83% | 🌧️ 2mm/h | 💨 5m/s</div>", unsafe_allow_html=True)
-except Exception as e:
-    st.warning(f"Weather fetch failed: {e}")
 
 # ---------- DASHBOARD ----------
 st.subheader("📊 30-Day Rainfall & Flood Risk Trend")
