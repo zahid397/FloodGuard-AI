@@ -6,6 +6,7 @@ import pandas as pd
 import pickle
 import os
 import sys
+from streamlit_autorefresh import st_autorefresh
 
 # ===== 🌊 Streamlit Page Config (must be first) =====
 st.set_page_config(
@@ -13,6 +14,9 @@ st.set_page_config(
     page_icon="🌧️",
     layout="centered"
 )
+
+# ===== 🔁 Auto Refresh Every 30 Seconds =====
+st_autorefresh(interval=30000, key="data_refresh")  # Refresh every 30 sec
 
 # ===== ✅ Fix Import Path =====
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '')))
@@ -109,7 +113,7 @@ if st.checkbox("📡 Show Live Weather & River Data"):
     st.subheader("🌊 River Data")
     if get_river_data:
         try:
-            river = get_river_data("Dhaka")
+            river = get_river_data("Bangladesh")
             if "error" in river:
                 st.warning(river["error"])
             else:
@@ -118,6 +122,10 @@ if st.checkbox("📡 Show Live Weather & River Data"):
             st.warning(f"River API not available: {e}")
     else:
         st.info("ℹ️ River API not integrated yet.")
+
+# ===== ⏱️ Last Updated Info =====
+import datetime
+st.caption(f"⏱️ Last Updated: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')} (Auto-refresh every 30s)")
 
 # ===== 👇 Footer =====
 st.caption("Developed by Zahid Hasan 💻 | Powered by Streamlit 🌊")
