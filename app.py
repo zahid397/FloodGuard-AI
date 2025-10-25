@@ -23,29 +23,13 @@ st.markdown("""
     background-color: #bbdefb !important;
     border-right: 2px solid #64b5f6 !important;
 }
-[data-testid="stSidebar"] * {
-    color: #0a192f !important;
-}
+[data-testid="stSidebar"] * { color: #0a192f !important; }
 div[data-baseweb="select"] > div {
     background-color: #ffffff !important;
     color: #0a192f !important;
     border-radius: 6px !important;
 }
-h1,h2,h3,h4,h5 {
-    color: #0a192f !important;
-    font-weight: 700 !important;
-}
-.subtitle {
-    text-align: center;
-    color: #08336e !important;
-    font-size: 17px !important;
-    font-weight: 700;
-    text-shadow: 0 0 6px rgba(255,255,255,0.9);
-    background: rgba(187,222,251,0.6);
-    border-radius: 8px;
-    padding: 6px 10px;
-    display: inline-block;
-}
+h1,h2,h3,h4,h5 { color:#0a192f !important;font-weight:700 !important; }
 .stButton>button {
     background-color: #1565c0 !important;
     color: white !important;
@@ -62,12 +46,22 @@ h1,h2,h3,h4,h5 {
     padding: 10px;
 }
 .info-box {
-    background-color: #dbeafe;
-    color: #0a192f;
+    background: rgba(219,234,254,0.9);
+    color: #08336e;
     border-left: 6px solid #1565c0;
     border-radius: 6px;
     padding: 10px;
     font-weight: 600;
+    backdrop-filter: blur(6px);
+}
+.api-box {
+    background: rgba(219,234,254,0.85);
+    border-left: 5px solid #0d47a1;
+    color: #0a192f;
+    border-radius: 8px;
+    padding: 12px;
+    font-weight: 600;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.05);
 }
 @media (max-width:768px){
     .stApp {font-size:15px!important;}
@@ -81,8 +75,15 @@ st.markdown("""
 <h1 style='text-align:center;color:#0a192f;font-weight:800;margin-bottom:8px;'>
 🌊 FloodGuard AI – Hackathon Pro Final 2026
 </h1>
-
-<p class='subtitle'>
+<p style='text-align:center;
+    font-size:17px;
+    color:#08336e;
+    font-weight:700;
+    text-shadow:0px 0px 6px rgba(255,255,255,0.9);
+    background:rgba(187,222,251,0.6);
+    border-radius:8px;
+    padding:6px 10px;
+    display:inline-block;'>
 💻 Zahid Hasan | Gemini 2.5 Flash ⚡ | Smart Dashboard 📊 | Weather ☁️ | River Board 🌊
 </p>
 """, unsafe_allow_html=True)
@@ -185,8 +186,7 @@ try:
         rain_mm = res.get("rain",{}).get("1h",0); wind = res["wind"]["speed"]
         st.success(f"🌤️ {desc} | 🌡️ {tempn}°C | 💧 {hum}% | 🌧️ {rain_mm}mm/h | 💨 {wind}m/s")
     else:
-        st.info("⚙️ OpenWeather API not set — showing simulated data.")
-        st.write("🌥️ Cloudy | 🌡️ 29°C | 💧 83% | 🌧️ 2mm/h | 💨 5m/s")
+        st.markdown("<div class='api-box'>⚙️ OpenWeather API not set — showing simulated data.<br>🌥️ Cloudy | 🌡️ 29°C | 💧 83% | 🌧️ 2mm/h | 💨 5m/s</div>", unsafe_allow_html=True)
 except Exception as e:
     st.warning(f"Weather fetch failed: {e}")
 
