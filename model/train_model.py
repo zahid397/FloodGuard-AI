@@ -1,65 +1,46 @@
-# train_model.py
-# FloodGuard AI Model Training Script
-# Author: Zahid Hasan
-
 import pandas as pd
 from sklearn.model_selection import train_test_split
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.metrics import accuracy_score
-import joblib
+import pickle
 import os
 
-def train_model(data_path="data/flood_data.csv", model_dir="model"):
+def train_model():
     """
-    Trains the flood prediction model and saves it as model/flood_model.pkl
+    Train a simple flood prediction model and save it as flood_model.pkl
     """
-    try:
-        # === 📂 Load dataset ===
-        df = pd.read_csv(data_path)
-        print(f"✅ Data loaded successfully: {df.shape[0]} rows")
 
-        # === 🧩 Feature and Target columns ===
-        feature_cols = ["MonsoonIntensity", "Topography", "Drainage", "SoilType", "Urbanization"]
-        target_col = "FloodRisk"
+    DATA_PATH = "flood_data.csv"  # Root-level CSV
+    MODEL_PATH = "model/flood_model.pkl"
 
-        if not all(col in df.columns for col in feature_cols + [target_col]):
-            raise ValueError("❌ Dataset missing one or more required columns.")
+    if not os.path.exists(DATA_PATH):
+        print("❌ Dataset not found. Please make sure 'flood_data.csv' exists.")
+        return
 
-        X = df[feature_cols]
-        y = df[target_col]
+    # Load dataset
+    data = pd.read_csv(DATA_PATH)
 
-        # === ✂️ Train-test split ===
-        X_train, X_test, y_train, y_test = train_test_split(
-            X, y, test_size=0.2, random_state=42
-        )
+    # Basic preprocessing
+    features = ["rainfall_mm", "temperature_c", "humidity_percent", "water_level_m"]
+    target = "flood_risk"
 
-        # === 🧠 Train RandomForest model ===
-        model = RandomForestClassifier(
-            n_estimators=200,
-            max_depth=None,
-            random_state=42,
-            n_jobs=-1
-        )
-        model.fit(X_train, y_train)
+    if not all(col in data.columns for col in features + [target]):
+        print("⚠️ Dataset missing required columns!")
+        print(f"Required columns: {features + [target]}")
+        return
 
-        # === 📊 Evaluate model ===
-        y_pred = model.predict(X_test)
-        acc = accuracy_score(y_test, y_pred)
-        print(f"📈 Model Accuracy: {acc:.2%}")
+    X = data[features]
+    y = data[target].map({"low": 0, "medium": 1, "high": 2})
 
-        # === 💾 Save model ===
-        os.makedirs(model_dir, exist_ok=True)
-        model_path = os.path.join(model_dir, "flood_model.pkl")
-        joblib.dump(model, model_path)
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
-        print(f"✅ Model saved successfully at {model_path}")
-        return model_path
+    model = RandomForestClassifier(n_estimators=100, random_state=42)
+    model.fit(X_train, y_train)
 
-    except FileNotFoundError:
-        print("❌ Error: Dataset not found. Please check 'data/flood_data.csv'.")
-    except Exception as e:
-        print(f"⚠️ Unexpected Error: {e}")
+    # Save the trained model
+    with open(MODEL_PATH, "wb") as f:
+        pickle.dump(model, f)
 
-# === 🔧 Run directly ===
+    print(f"✅ Model trained and saved to {MODEL_PATH}")
+
 if __name__ == "__main__":
     train_model()
