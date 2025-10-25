@@ -1,137 +1,199 @@
-# 🌊 FloodGuard AI - Auto Train + Gemini 2.5 + Bengali Voice
-# Developed by Zahid Hasan 💻
-
 import streamlit as st
 import pandas as pd
-import numpy as np
-import os, pickle, requests, base64
-from io import BytesIO
-from gtts import gTTS
+import folium
+from folium.plugins import HeatMap
+from streamlit_folium import st_folium
 import google.generativeai as genai
-from sklearn.ensemble import RandomForestClassifier
+from gtts import gTTS
+from io import BytesIO
+import pickle, os
+import plotly.express as px
+import numpy as np
+from datetime import datetime, timedelta
 
-# ====================== PAGE CONFIG ======================
+# ========== PAGE CONFIG ==========
 st.set_page_config(page_title="FloodGuard AI", page_icon="🌊", layout="wide")
-st.title("🌊 FloodGuard AI - 2025 Edition")
-st.caption("💻 Developed by Zahid Hasan | Gemini 2.5 + Bengali Voice + Auto-Train Flood Model")
+st.markdown("<style>body{background:#e6f3ff}.stApp{background:#e6f3ff}</style>", unsafe_allow_html=True)
+st.title("🌊 FloodGuard AI – Gemini Flash Edition 2026")
+st.caption("💻 Zahid Hasan | Gemini 2.5/1.5 Flash + BWDB/NASA Mock + Voice + Gradient HeatMap + Smart Alerts")
 
-# ====================== MODEL SETUP ======================
-MODEL_PATH = "model/flood_model.pkl"
-os.makedirs("model", exist_ok=True)
+# ---------- SESSION ----------
+for k in ["risk", "ai_summary", "audio", "messages"]:
+    if k not in st.session_state:
+        st.session_state[k] = "N/A" if k == "risk" else None if k in ["ai_summary", "audio"] else []
 
-def train_flood_model():
-    """Train a simple model if not found."""
-    data = pd.DataFrame({
-        "rainfall_mm": np.random.uniform(0, 400, 1000),
-        "temperature_c": np.random.uniform(15, 38, 1000),
-        "humidity_percent": np.random.uniform(40, 95, 1000),
-        "water_level_m": np.random.uniform(0, 10, 1000)
-    })
-    data["flood_risk"] = (
-        (data["rainfall_mm"] > 200) |
-        (data["water_level_m"] > 6) |
-        ((data["humidity_percent"] > 85) & (data["temperature_c"] < 25))
-    ).astype(int)
-    model = RandomForestClassifier(n_estimators=100, random_state=42)
-    model.fit(data[["rainfall_mm", "temperature_c", "humidity_percent", "water_level_m"]], data["flood_risk"])
-    with open(MODEL_PATH, "wb") as f:
-        pickle.dump(model, f)
-    return model
-
-if not os.path.exists(MODEL_PATH):
-    st.warning("⚠️ Flood model not found. Training new one automatically...")
-    model = train_flood_model()
-else:
-    with open(MODEL_PATH, "rb") as f:
-        model = pickle.load(f)
-    st.success("✅ Flood model loaded successfully!")
-
-# ====================== WEATHER DATA ======================
-def get_weather(city="Dhaka"):
-    api_key = st.secrets.get("OPENWEATHER_API") or os.getenv("OPENWEATHER_API")
-    if not api_key:
-        return {"city": city, "temp": "29°C", "humidity": "80%", "desc": "Clear sky (Demo Mode)"}
+# ---------- GEMINI ----------
+@st.cache_resource
+def init_gemini():
     try:
-        url = f"https://api.openweathermap.org/data/2.5/weather?q={city}&appid={api_key}&units=metric"
-        r = requests.get(url)
-        d = r.json()
-        if r.status_code == 200:
-            return {
-                "city": d.get("name", city),
-                "temp": f"{d['main']['temp']} °C",
-                "humidity": f"{d['main']['humidity']}%",
-                "desc": d['weather'][0]['description'].capitalize()
-            }
-        else:
-            return {"city": city, "temp": "30°C", "humidity": "85%", "desc": "Demo weather data"}
-    except Exception as e:
-        return {"error": str(e)}
-
-# ====================== GEMINI SETUP ======================
-try:
-    genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
-except:
-    genai = None
-    st.warning("⚠️ Gemini API key not found in Streamlit Secrets!")
-
-# ====================== INPUTS ======================
-st.sidebar.header("📥 Input Parameters")
-rain = st.sidebar.slider("Rainfall (mm)", 0.0, 400.0, 120.0)
-temp = st.sidebar.slider("Temperature (°C)", 0.0, 45.0, 28.0)
-hum = st.sidebar.slider("Humidity (%)", 0.0, 100.0, 80.0)
-river = st.sidebar.slider("River Level (m)", 0.0, 10.0, 5.0)
-
-# ====================== PREDICTION ======================
-if st.button("🔮 Predict Flood Risk"):
-    X = pd.DataFrame([[rain, temp, hum, river]], columns=["rainfall_mm", "temperature_c", "humidity_percent", "water_level_m"])
-    pred = model.predict(X)[0]
-    risk = "⚠️ High Risk" if pred == 1 else "✅ Safe Zone"
-    color = "red" if pred == 1 else "green"
-    st.markdown(f"### **Flood Risk:** <span style='color:{color}'>{risk}</span>", unsafe_allow_html=True)
-
-# ====================== LIVE DATA ======================
-st.divider()
-st.subheader("📡 Live Weather & River Data")
-weather = get_weather("Dhaka")
-st.json(weather)
-st.json({
-    "Padma": {"level_m": 5.6, "status": "Rising"},
-    "Jamuna": {"level_m": 6.2, "status": "Stable"},
-    "Meghna": {"level_m": 4.1, "status": "Falling"}
-})
-
-# ====================== GEMINI CHAT ======================
-st.divider()
-st.subheader("💬 Ask FloodGuard AI (বাংলায় প্রশ্ন করো)")
-query = st.text_input("তোমার প্রশ্ন লিখো এখানে:")
-
-if query:
-    if genai:
+        genai.configure(api_key=st.secrets.get("GEMINI_API_KEY"))
         try:
-            model_ai = genai.GenerativeModel("gemini-2.0-flash")
-            response = model_ai.generate_content(f"বাংলায় উত্তর দাও: {query}")
-            answer = response.text
-            st.markdown(f"**FloodGuard AI:** {answer}")
+            model = genai.GenerativeModel("gemini-2.5-flash")
+            st.success("✅ Gemini 2.5 Flash loaded")
+        except Exception:
+            model = genai.GenerativeModel("gemini-1.5-flash")
+            st.warning("⚠️ Using Gemini 1.5 Flash (fallback)")
+        return model
+    except Exception as e:
+        st.error(f"Gemini setup failed → {e}")
+        return None
+gemini = init_gemini()
 
-            # Voice output
+# ---------- MOCK BWDB ----------
+@st.cache_data(ttl=300)
+def get_bwdb():
+    f = np.random.uniform(-0.5, 0.5)
+    return {
+        "rivers": [
+            {"name":"Padma","station":"Goalundo","level":round(8.4+f,2),"danger":10.5,"loc":[23.75,89.75]},
+            {"name":"Jamuna","station":"Sirajganj","level":round(9.0+f,2),"danger":11.0,"loc":[24.45,89.70]},
+            {"name":"Meghna","station":"Ashuganj","level":round(7.6+f,2),"danger":9.2,"loc":[24.02,91.00]},
+        ]
+    }
+
+# ---------- MODEL ----------
+@st.cache_resource
+def load_model():
+    p="model/flood_model.pkl"
+    if os.path.exists(p):
+        try:
+            with open(p,"rb") as f: return pickle.load(f)
+        except Exception as e: st.warning(f"Model load error: {e}")
+    return None
+model = load_model()
+
+def simple_predict(r,t,h,l):
+    s=(r/100)+(l/8)+(h/100)-(t/40)
+    return "High" if s>2 else "Medium" if s>1 else "Low"
+
+# ---------- SIDEBAR ----------
+st.sidebar.header("📥 Input Parameters")
+rain=st.sidebar.slider("🌧️ Rainfall (mm)",0,500,50)
+temp=st.sidebar.slider("🌡️ Temp (°C)",10,40,27)
+hum=st.sidebar.slider("💧 Humidity (%)",30,100,85)
+level=st.sidebar.slider("🌊 River Level (m)",0.0,20.0,5.0)
+loc=st.sidebar.selectbox("📍 Location",["Dhaka","Sylhet","Rajshahi","Chittagong"])
+
+if st.sidebar.button("🔮 Predict Flood Risk",use_container_width=True):
+    st.session_state.ai_summary=None; st.session_state.audio=None
+    try:
+        if model:
+            df=pd.DataFrame([[rain,temp,hum,level]],
+                            columns=["rainfall_mm","temperature_c","humidity_percent","water_level_m"])
+            p=model.predict(df)[0]; risk={0:"Low",1:"Medium",2:"High"}[int(p)]
+        else: risk=simple_predict(rain,temp,hum,level)
+        st.session_state.risk=risk
+    except Exception as e:
+        st.session_state.risk="Error"; st.error(f"Prediction failed {e}")
+    if gemini and st.session_state.risk!="Error":
+        with st.spinner("🤖 Gemini analyzing..."):
+            prompt=(f"Location {loc}, Rain {rain} mm, River {level} m, Hum {hum}%, Temp {temp}°C. "
+                    f"Flood risk {st.session_state.risk}. Give 2 short Bangla safety tips + English translation.")
             try:
-                tts = gTTS(answer, lang="bn")
-                buf = BytesIO()
-                tts.write_to_fp(buf)
-                buf.seek(0)
-                b64 = base64.b64encode(buf.read()).decode()
-                st.markdown(
-                    f'<audio controls autoplay><source src="data:audio/mp3;base64,{b64}" type="audio/mp3"></audio>',
-                    unsafe_allow_html=True
-                )
-            except:
-                st.info("🎧 Voice output coming soon...")
+                res=gemini.generate_content(prompt); txt=res.text[:250]
+                st.session_state.ai_summary=txt
+                short=txt[:100]
+                try:
+                    tts=gTTS(short,lang="bn"); buf=BytesIO(); tts.write_to_fp(buf)
+                    st.session_state.audio=buf.getvalue()
+                except: st.warning("🎧 Voice offline mode")
+            except Exception as e: st.warning(f"AI summary error {e}")
 
-        except Exception as e:
-            st.warning(f"⚠️ Gemini response failed: {e}")
-    else:
-        st.info("ℹ️ Gemini AI not configured yet!")
+# ---------- TABS ----------
+tab1,tab2,tab3,tab4=st.tabs(["🔮 Prediction","📊 Dashboard","🗺️ Map","💬 Chatbot"])
 
-# ====================== FOOTER ======================
+# --- Prediction
+with tab1:
+    st.subheader(f"📍 {loc} Flood Forecast")
+    r=st.session_state.risk
+    if r not in ["N/A","Error"]:
+        icon={"Low":"🟢","Medium":"🟡","High":"🔴"}[r]
+        st.markdown(f"### {icon} **{r} Risk**")
+        if r=="High": st.error("🚨 HIGH RISK! Evacuate low areas."); st.balloons()
+        elif r=="Medium": st.warning("⚠️ Moderate risk – Stay alert.")
+        else: st.success("✅ Low risk – Safe conditions.")
+    elif r=="Error": st.error("❌ Prediction failed.")
+    else: st.info("👆 Use sidebar to predict.")
+    if st.session_state.ai_summary:
+        st.markdown("### 🤖 AI Safety Tips"); st.markdown(st.session_state.ai_summary)
+    if st.session_state.audio: st.audio(st.session_state.audio,format="audio/mp3")
+
+# --- Dashboard
+with tab2:
+    st.subheader("📈 30-Day Flood Trend (Rain ↔ River Linked)")
+    bwdb=get_bwdb(); cols=st.columns(3)
+    for i,r in enumerate(bwdb["rivers"]):
+        d=r["level"]-r["danger"]*0.9
+        cols[i%3].metric(f"🌊 {r['name']} Level",f"{r['level']} m",delta=f"{d:+.1f} m",
+                         delta_color="inverse" if d>0 else "normal")
+    days=pd.date_range(datetime.now()-timedelta(days=29),periods=30)
+    avg=np.mean([r["level"] for r in bwdb["rivers"]])
+    rain_d=(avg*10)+np.random.normal(0,20,30)
+    df=pd.DataFrame({"Date":days,"Rainfall (mm)":rain_d})
+    df["Risk"]=df["Rainfall (mm)"].apply(lambda r:"Low"if r<60 else"Medium"if r<120 else"High")
+    fig=px.line(df,x="Date",y="Rainfall (mm)",color="Risk",
+        color_discrete_map={"Low":"green","Medium":"orange","High":"red"},
+        title="Rainfall & Flood Risk Trend (Simulated)")
+    fig.add_hline(y=120,line_dash="dash",line_color="red",annotation_text="High Risk")
+    st.plotly_chart(fig,use_container_width=True)
+
+# --- Map
+with tab3:
+    st.subheader("🗺️ Interactive Flood Risk Map (Gradient Heat Zones)")
+    bwdb=get_bwdb(); m=folium.Map(location=[23.8,90.4],zoom_start=7,tiles="CartoDB positron")
+    heat=[]
+    for r in bwdb["rivers"]:
+        color="red"if r["level"]>r["danger"]else"orange"if r["level"]>r["danger"]*0.9 else"green"
+        folium.Marker(r["loc"],tooltip=f"{r['name']} – {r['level']} m",
+            popup=f"<b>{r['name']}</b><br>Station:{r['station']}<br>Level:{r['level']}m<br>Danger:{r['danger']}m<br>Risk:{color}",
+            icon=folium.Icon(color=color,icon="tint",prefix="fa")).add_to(m)
+        pts=70 if color=="red" else 50 if color=="orange" else 30
+        heat.extend(np.random.normal(loc=r["loc"],scale=[0.5,0.5],size=(pts,2)).tolist())
+    HeatMap(heat,radius=20,blur=15,min_opacity=0.2,max_zoom=13,
+            gradient={0.2:'green',0.5:'orange',0.8:'red'}).add_to(m)
+    st_folium(m,width="100%",height=500)
+
+# --- Chatbot
+with tab4:
+    st.subheader("💬 FloodGuard AI Chat (Bengali + English)")
+    for msg in st.session_state.messages:
+        with st.chat_message(msg["role"]): st.markdown(msg["content"])
+    if q:=st.chat_input("প্রশ্ন করুন / Ask a question..."):
+        st.session_state.messages.append({"role":"user","content":q})
+        if len(st.session_state.messages)>8:
+            st.session_state.messages=st.session_state.messages[-8:]
+        with st.chat_message("user"): st.markdown(q)
+        with st.chat_message("assistant"):
+            if gemini:
+                try:
+                    ctx=" ".join([m['content']for m in st.session_state.messages[-3:]if m['role']=="user"])
+                    res=gemini.generate_content(
+                        f"You are FloodGuard AI (Bangladesh flood expert). Context:{ctx}. "
+                        f"Answer in Bangla then English (<100 words): {q}")
+                    ans=res.text; st.markdown(ans)
+                    st.session_state.messages.append({"role":"assistant","content":ans})
+                except Exception as e: st.error(f"🤖 Chat error: {e}")
+            else: st.info("Demo mode: Moderate risk in Dhaka – stay alert.")
+    if st.button("🗑️ Clear Chat"): st.session_state.messages=[]; st.rerun()
+
+# ---------- FOOTER ----------
 st.divider()
-st.caption("🌊 FloodGuard AI © 2025 | Auto-Trained Flood Model + Bengali Voice by Zahid Hasan 💻")
+st.caption(
+    "🌊 FloodGuard AI © 2025-26 | Gemini 2.5/1.5 Flash + Mock BWDB/NASA "
+    "| Developed by Zahid Hasan 💻 | [GitHub](https://github.com/zahid397/FloodGuard-AI)"
+)
+
+# ---------- NASA EXPANDER ----------
+with st.expander("🛰️ NASA Flood Sim"):
+    nasa_df = pd.DataFrame({
+        "Basin": ["Sylhet", "Barisal", "Dhaka"],
+        "Extent km²": [250, 120, 80],
+        "Severity": ["High", "Medium", "Low"]
+    })
+    fig_n = px.bar(
+        nasa_df, x="Basin", y="Extent km²", color="Severity",
+        color_discrete_map={"High": "red", "Medium": "orange", "Low": "green"},
+        title="NASA Flood Extent Simulation"
+    )
+    st.plotly_chart(fig_n, use_container_width=True)
+    st.markdown("[Explore Real NASA GPM Data →](https://gpm.nasa.gov/)")
