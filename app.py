@@ -1,4 +1,4 @@
-# 🌊 FloodGuard AI | Updated 2025 Version
+# 🌊 FloodGuard AI | Fixed 2025 Version
 # Developed by Zahid Hasan 💻 | AI + Real Data + Bengali Voice
 
 import streamlit as st
@@ -16,7 +16,7 @@ import google.generativeai as genai
 
 # ================== Page Setup ==================
 st.set_page_config(page_title="FloodGuard AI", page_icon="🌧️", layout="wide")
-st.title("🌊 FloodGuard AI - Updated 2025 Edition")
+st.title("🌊 FloodGuard AI - Fixed 2025 Edition")
 st.caption("💻 Developed by Zahid Hasan | Gemini 2.5 + Real Data + Bengali Voice")
 
 # ================== Gemini Setup ==================
@@ -51,6 +51,10 @@ def get_weather(city):
         url = f"https://api.openweathermap.org/data/2.5/weather?q={city}&appid={api_key}&units=metric"
         r = requests.get(url)
         data = r.json()
+
+        if "name" not in data or "main" not in data:
+            return {"error": data.get("message", "Invalid API response")}
+
         return {
             "City": data["name"],
             "Temperature": f"{data['main']['temp']} °C",
@@ -129,7 +133,8 @@ if query:
     st.session_state.memory.append({"user": query})
     if gemini_model:
         with st.spinner("🤖 FloodGuard AI ভাবছে..."):
-            context = " ".join([m['user'] for m in st.session_state.memory[-3:]])
+            # Safely build context
+            context = " ".join([m.get("user", "") for m in st.session_state.memory[-3:]])
             response = gemini_model.generate_content(f"Context: {context}\nবাংলায় উত্তর দাও: {query}")
             ans = response.text
             st.markdown(f"**FloodGuard AI:** {ans}")
