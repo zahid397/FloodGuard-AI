@@ -1,165 +1,84 @@
-# FloodGuard AI 🌊
-# Developed by Zahid Hasan – Final Stable Version with Bangla AI Answer Support
+# 🌊 FloodGuard AI | Gemini-Powered Smart Flood App
+# Developed by Zahid Hasan 💻
 
 import streamlit as st
 import pandas as pd
 import pickle
 import os
-import sys
-import datetime
-import folium
-from streamlit_folium import st_folium
+import google.generativeai as genai
 
-# Optional modules
-try:
-    from streamlit_autorefresh import st_autorefresh
-except ImportError:
-    st_autorefresh = None
+# ========== CONFIG ==========
+st.set_page_config(page_title="FloodGuard AI", page_icon="🌧️", layout="centered")
+st.title("🌊 FloodGuard AI - Smart Flood Prediction System (Gemini 2.5 Flash)")
+st.caption("Developed by Zahid Hasan 💻 | Powered by Google Gemini AI ⚡")
 
-try:
-    from googletrans import Translator
-except ImportError:
-    Translator = None
+# ========== SETUP GEMINI ==========
+genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
 
-# ===== Page Config =====
-st.set_page_config(page_title="FloodGuard AI", page_icon="🌧️", layout="wide")
-
-# Auto-refresh every 30 sec
-if st_autorefresh:
-    st_autorefresh(interval=30000, key="refresh")
-
-# Import helpers
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '')))
-
-try:
-    from utils.weather_api import get_weather_data
-except Exception:
-    get_weather_data = None
-
-try:
-    from utils.river_api import get_river_data
-except Exception:
-    get_river_data = None
-
-try:
-    from model.train_model import train_model
-except Exception:
-    train_model = None
-
-# Model load
+# ========== LOAD ML MODEL ==========
 MODEL_PATH = "model/flood_model.pkl"
 model = None
-if not os.path.exists(MODEL_PATH):
-    st.warning("⚠️ Model not found! Training new model if possible...")
-    if train_model:
-        try:
-            train_model()
-            with open(MODEL_PATH, "rb") as f:
-                model = pickle.load(f)
-            st.success("✅ Model trained successfully!")
-        except Exception as e:
-            st.error(f"Training failed: {e}")
+
+if os.path.exists(MODEL_PATH):
+    with open(MODEL_PATH, "rb") as f:
+        model = pickle.load(f)
 else:
-    try:
-        with open(MODEL_PATH, "rb") as f:
-            model = pickle.load(f)
-    except Exception as e:
-        st.error(f"Model load error: {e}")
+    st.warning("⚠️ Flood prediction model not found! Please train it first.")
 
-# ===== Sidebar inputs =====
-st.sidebar.header("📍 Input Parameters")
-city = st.sidebar.selectbox("Select City", 
-    ["Dhaka","Rajshahi","Sylhet","Khulna","Chattogram","Barishal","Rangpur"])
-rainfall = st.sidebar.number_input("Rainfall (mm)",0.0,500.0,step=1.0)
-temperature = st.sidebar.number_input("Temperature (°C)",-10.0,60.0,step=0.5)
-humidity = st.sidebar.number_input("Humidity (%)",0.0,100.0,step=1.0)
-river_level = st.sidebar.number_input("River Level (m)",0.0,25.0,step=0.1)
+# ========== SIDEBAR INPUT ==========
+st.sidebar.header("📥 Input Parameters")
+rainfall = st.sidebar.number_input("Rainfall (mm)", min_value=0.0, max_value=500.0, step=1.0)
+temperature = st.sidebar.number_input("Temperature (°C)", min_value=-10.0, max_value=60.0, step=0.5)
+humidity = st.sidebar.number_input("Humidity (%)", min_value=0.0, max_value=100.0, step=1.0)
+water_level = st.sidebar.number_input("River Level (m)", min_value=0.0, max_value=25.0, step=0.1)
 
-# ===== Title =====
-st.title("🌊 FloodGuard AI – Smart Flood Prediction System")
-st.write("এই অ্যাপ টি রিয়েল-টাইম আবহাওয়া ও নদীর তথ্য বিশ্লেষণ করে বন্যার ঝুঁকি অনুমান করে।")
-
-# ===== Prediction =====
+# ========== FLOOD PREDICTION ==========
 if st.button("🔮 Predict Flood Risk"):
     if model is None:
-        st.error("❌ Model not loaded.")
+        st.error("❌ Model not loaded. Train or upload a valid model first.")
     else:
-        input_data = pd.DataFrame(
-            [[rainfall, temperature, humidity, river_level]],
-            columns=["rainfall_mm","temperature_c","humidity_percent","water_level_m"]
-        )
+        input_data = pd.DataFrame([[rainfall, temperature, humidity, water_level]],
+                                  columns=["rainfall_mm", "temperature_c", "humidity_percent", "water_level_m"])
         try:
             pred = model.predict(input_data)[0]
-            if pred == 2:
-                st.error("🚨 উচ্চ ঝুঁকি: বন্যা ঘটতে পারে!")
-                st.toast("🚨 Flood Alert sent to authorities!")
-            elif pred == 1:
-                st.warning("⚠️ মধ্যম ঝুঁকি: নদীর স্তর মনিটর করুন।")
+            if pred == 2 or pred == "high":
+                st.error("🚨 High Flood Risk! Evacuate low areas immediately.")
+            elif pred == 1 or pred == "medium":
+                st.warning("⚠️ Medium Risk: Stay alert and monitor updates.")
             else:
-                st.success("✅ নিম্ন ঝুঁকি: কোনও বন্যা আশঙ্কা নেই।")
+                st.success("✅ Low Risk: No immediate flood concern.")
         except Exception as e:
             st.warning(f"⚠️ Prediction failed: {e}")
 
-# ===== Weather & River data =====
-if st.checkbox("📡 Show Live Weather & River Data"):
-    col1,col2 = st.columns(2)
-    with col1:
-        st.subheader("🌦 Weather Data")
-        if get_weather_data:
-            try:
-                weather = get_weather_data(city)
-                if "error" not in weather:
-                    st.metric("Temperature (°C)",weather["temperature"])
-                    st.metric("Humidity (%)",weather["humidity"])
-                    st.metric("Rain (mm)",weather["rain"])
-                    st.metric("Condition",weather["description"])
-                else:
-                    st.warning(weather["error"])
-            except Exception as e:
-                st.warning(e)
-        else:
-            st.info("Weather API not integrated yet.")
-    with col2:
-        st.subheader("🌊 River Data")
-        if get_river_data:
-            try:
-                river = get_river_data(city)
-                st.json(river)
-            except Exception as e:
-                st.warning(e)
-        else:
-            st.info("River API not integrated yet.")
+# ========== GEMINI CHATBOT (ASK FLOOD AI) ==========
+st.divider()
+st.subheader("💬 Ask FloodGuard AI (বাংলা বা ইংরেজি)")
 
-# ===== Map =====
-st.subheader("🗺️ Flood Map Visualization")
-m = folium.Map(location=[23.685,90.3563], zoom_start=6)
-for name,coord in {"Padma":[23.5,89.8],"Meghna":[23.3,90.7],"Jamuna":[24.5,89.6]}.items():
-    folium.Marker(location=coord,popup=f"{name} River").add_to(m)
-st_folium(m,width=700,height=450)
-
-# ===== Ask Flood AI (Bangla support) =====
-st.subheader("💬 Ask Flood AI (বাংলায় প্রশ্ন করুন)")
-user_msg = st.text_input("প্রশ্ন লিখুন:")
-
-def translate_to_bangla(text):
-    if not Translator: return text
+def ask_flood_ai(question):
+    """Send a user question to Gemini 2.5 Flash and return AI answer."""
     try:
-        tr = Translator()
-        return tr.translate(text,dest='bn').text
-    except Exception:
-        return text
+        model = genai.GenerativeModel("gemini-2.0-flash")
+        prompt = f"You are FloodGuard AI, an assistant for flood prediction in Bangladesh. Answer in Bangla. প্রশ্ন: {question}"
+        response = model.generate_content(prompt)
+        return response.text
+    except Exception as e:
+        return f"⚠️ Error fetching AI response: {e}"
+
+user_msg = st.text_input("তোমার প্রশ্ন লিখো এখানে:")
 
 if user_msg:
-    ai_answer = "FloodGuard AI is analyzing real-time data to estimate flood risk levels."
-    st.write("🤖 FloodGuard AI:", translate_to_bangla(ai_answer))
+    with st.spinner("🤖 FloodGuard AI ভাবছে..."):
+        answer = ask_flood_ai(user_msg)
+        st.markdown(f"**FloodGuard AI:** {answer}")
 
-# ===== About =====
-with st.expander("📘 About FloodGuard AI"):
-    st.markdown("""
-**FloodGuard AI** হলো একটি AI-চালিত বন্যা পূর্বাভাস ও সতর্কতা সিস্টেম,  
-যা আবহাওয়া ও নদীর তথ্য বিশ্লেষণ করে বাংলাদেশে বন্যা ঝুঁকি হ্রাস করতে সহায়তা করে।
+# ========== FUTURE FEATURES ==========
+st.divider()
+st.markdown("""
+### 🔮 Upcoming Features
+- 📡 Live Weather & River Data (Padma, Jamuna, Meghna)
+- 🗺️ Flood Map Visualization (Google Maps + Folium)
+- 📊 Flood Risk History Dashboard
+- 🔔 Smart Alert Notifications (SMS / Email)
+- 🧠 City-Sector Flood Forecast Cards
+- 🧍‍♂️ Bengali Voice Chat Support (Text-to-Speech)
 """)
-
-# ===== Footer =====
-st.caption(f"⏱ Last Updated: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-st.caption("💻 Developed by Zahid Hasan | FloodGuard AI © 2025")
