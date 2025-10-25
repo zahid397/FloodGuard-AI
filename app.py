@@ -7,14 +7,9 @@ import requests
 import google.generativeai as genai
 from gtts import gTTS
 from io import BytesIO
-from streamlit_autorefresh import st_autorefresh
 
 # ---------- PAGE CONFIG ----------
 st.set_page_config(page_title="FloodGuard AI", page_icon="🌊", layout="wide")
-
-# ---------- AUTO REFRESH ----------
-# প্রতি 30 মিনিটে weather data auto update হবে 🌦️
-st_autorefresh(interval=30 * 60 * 1000, key="auto_weather_refresh")
 
 # ---------- STYLE ----------
 st.markdown("""
@@ -28,13 +23,18 @@ st.markdown("""
     background-color: #bbdefb !important;
     border-right: 2px solid #64b5f6 !important;
 }
-[data-testid="stSidebar"] * { color: #0a192f !important; }
+[data-testid="stSidebar"] * {
+    color: #0a192f !important;
+}
 div[data-baseweb="select"] > div {
     background-color: #ffffff !important;
     color: #0a192f !important;
     border-radius: 6px !important;
 }
-h1,h2,h3,h4,h5 { color:#0a192f !important;font-weight:700 !important; }
+h1,h2,h3,h4,h5 {
+    color: #0a192f !important;
+    font-weight: 700 !important;
+}
 .stButton>button {
     background-color: #1565c0 !important;
     color: white !important;
@@ -57,7 +57,6 @@ h1,h2,h3,h4,h5 { color:#0a192f !important;font-weight:700 !important; }
     border-radius: 6px;
     padding: 10px;
     font-weight: 600;
-    backdrop-filter: blur(6px);
 }
 .api-box {
     background: linear-gradient(135deg, #dbeafe 0%, #e8f3ff 100%);
@@ -67,7 +66,16 @@ h1,h2,h3,h4,h5 { color:#0a192f !important;font-weight:700 !important; }
     padding: 12px;
     font-weight: 600;
     box-shadow: 0 3px 6px rgba(0,0,0,0.05);
-    backdrop-filter: blur(4px);
+}
+[data-testid="stChatMessage"] p {
+    color: #0a192f !important;
+    font-weight: 500;
+}
+[data-testid="stChatMessage"] {
+    background: #f0f9ff;
+    border-radius: 10px;
+    padding: 10px;
+    margin-bottom: 5px;
 }
 @media (max-width:768px){
     .stApp {font-size:15px!important;}
@@ -81,6 +89,7 @@ st.markdown("""
 <h1 style='text-align:center;color:#0a192f;font-weight:800;margin-bottom:8px;'>
 🌊 FloodGuard AI – Hackathon Pro Final 2026
 </h1>
+
 <p style='text-align:center;
     font-size:17px;
     color:#08336e;
@@ -117,7 +126,7 @@ def init_gemini():
 
 gemini = init_gemini()
 
-# ---------- FLOOD PREDICT ----------
+# ---------- PREDICT ----------
 def predict_flood(r, t, h, l):
     s = (r/100)+(l/8)+(h/100)-(t/40)
     return "High" if s>2 else "Medium" if s>1 else "Low"
@@ -144,7 +153,7 @@ with st.sidebar:
             except Exception as e:
                 st.session_state.ai_summary = f"AI error: {e}"
 
-# ---------- WEATHER (AUTO REFRESH) ----------
+# ---------- WEATHER ----------
 st.subheader("☁️ Daily Weather & Rainfall Report (OpenWeather)")
 try:
     key = st.secrets.get("OPENWEATHER_KEY")
