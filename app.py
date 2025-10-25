@@ -13,7 +13,7 @@ from datetime import datetime, timedelta
 # ---------- PAGE CONFIG ----------
 st.set_page_config(page_title="FloodGuard AI", page_icon="🌊", layout="wide")
 
-# ---------- FLOOD-SAFE THEME ----------
+# ---------- THEME ----------
 st.markdown("""
 <style>
 body, .stApp {
@@ -136,7 +136,7 @@ def init_gemini():
         st.success("✅ Gemini 2.5 Flash model loaded")
         return model
     except:
-        st.warning("⚠️ Gemini not active, demo mode only")
+        st.info("💡 Demo mode active — AI tips disabled.")
         return None
 gemini=init_gemini()
 
@@ -164,18 +164,19 @@ level=st.sidebar.slider("🌊 River Level (m)",0.0,20.0,5.0)
 loc=st.sidebar.selectbox("📍 Location",["Dhaka","Sylhet","Rajshahi","Chittagong"])
 
 if st.sidebar.button("🔮 Predict Flood Risk",use_container_width=True):
-    st.session_state.ai_summary=None; st.session_state.audio=None
-    r=simple_predict(rain,temp,hum,level)
-    st.session_state.risk=r
-    if gemini:
-        try:
-            prompt=f"Location {loc}, Rain {rain}mm, River {level}m, Hum {hum}%, Temp {temp}°C. Flood risk {r}. Give 2 short Bangla safety tips + English translation."
-            res=gemini.generate_content(prompt)
-            st.session_state.ai_summary=res.text[:300]
-            short=res.text[:100]
-            tts=gTTS(short,lang="bn"); buf=BytesIO(); tts.write_to_fp(buf)
-            st.session_state.audio=buf.getvalue()
-        except: pass
+    with st.spinner("Processing flood prediction..."):
+        st.session_state.ai_summary=None; st.session_state.audio=None
+        r=simple_predict(rain,temp,hum,level)
+        st.session_state.risk=r
+        if gemini:
+            try:
+                prompt=f"Location {loc}, Rain {rain}mm, River {level}m, Hum {hum}%, Temp {temp}°C. Flood risk {r}. Give 2 short Bangla safety tips + English translation."
+                res=gemini.generate_content(prompt)
+                st.session_state.ai_summary=res.text[:300]
+                short=res.text[:100]
+                tts=gTTS(short,lang="bn"); buf=BytesIO(); tts.write_to_fp(buf)
+                st.session_state.audio=buf.getvalue()
+            except: pass
 
 # ---------- TABS ----------
 tab1,tab2,tab3,tab4=st.tabs(["🔮 Prediction","📊 Dashboard","🗺️ Map","💬 Chatbot"])
@@ -213,32 +214,34 @@ with tab2:
     fig.update_layout(plot_bgcolor="#f5f5f5", paper_bgcolor="#f5f5f5")
     st.plotly_chart(fig,use_container_width=True)
 
-# --- Map (Fixed)
+# --- Map
 with tab3:
     st.subheader("🗺️ Interactive Flood Risk Map")
-    bwdb=get_bwdb()
-    m=folium.Map(location=[23.8,90.4],zoom_start=7,tiles="CartoDB positron")
+    with st.spinner("Loading map visualization..."):
+        bwdb=get_bwdb()
+        m=folium.Map(location=[23.8,90.4],zoom_start=7,tiles="OpenStreetMap",attr="OpenStreetMap")
+        folium.TileLayer("Stamen Terrain").add_to(m)
+        folium.LayerControl().add_to(m)
 
-    heat=[]
-    for r in bwdb["rivers"]:
-        color="red"if r["level"]>r["danger"]else"orange"if r["level"]>r["danger"]*0.9 else"green"
-        folium.Marker(
-            r["loc"],
-            tooltip=f"{r['name']} – {r['level']} m",
-            popup=f"<b>{r['name']}</b><br>Station: {r['station']}<br>Level: {r['level']} m<br>Danger: {r['danger']} m<br>Risk: {color}",
-            icon=folium.Icon(color=color,icon="tint",prefix="fa")
-        ).add_to(m)
-        pts=70 if color=="red" else 50 if color=="orange" else 30
-        heat.extend(np.random.normal(loc=r["loc"],scale=[0.5,0.5],size=(pts,2)).tolist())
+        heat=[]
+        for r in bwdb["rivers"]:
+            color="red"if r["level"]>r["danger"]else"orange"if r["level"]>r["danger"]*0.9 else"green"
+            folium.Marker(
+                r["loc"],
+                tooltip=f"{r['name']} – {r['level']} m",
+                popup=f"<b>{r['name']}</b><br>Station: {r['station']}<br>Level: {r['level']}m<br>Danger: {r['danger']}m<br>Risk: {color}",
+                icon=folium.Icon(color=color,icon="tint",prefix="fa")
+            ).add_to(m)
+            pts=70 if color=="red" else 50 if color=="orange" else 30
+            heat.extend(np.random.normal(loc=r["loc"],scale=[0.5,0.5],size=(pts,2)).tolist())
 
-    # ✅ Fixed visualization logic
-    if heat:
-        HeatMap(heat,radius=20,blur=15,min_opacity=0.25,max_zoom=13,
+        if heat:
+            HeatMap(heat,radius=20,blur=15,min_opacity=0.25,max_zoom=13,
                 gradient={0.2:'#4caf50',0.5:'#ff9800',0.8:'#f44336'}).add_to(m)
-        st_folium(m,width="100%",height=520)
-        st.caption("🌍 Map rendered successfully ✅")
-    else:
-        st.warning("⚠️ Map data missing — refresh or predict again.")
+            st_folium(m,width="100%",height=520)
+            st.success("🌍 Map rendered successfully ✅")
+        else:
+            st.warning("⚠️ No map data — try predicting again.")
 
 # --- Chatbot
 with tab4:
@@ -254,9 +257,10 @@ with tab4:
                     f"You are FloodGuard AI (Bangladesh flood expert). Answer shortly in Bangla + English (<100 words): {q}")
                 ans=res.text; st.markdown(ans)
                 st.session_state.messages.append({"role":"assistant","content":ans})
-            else: st.info("Demo mode active.")
+            else: st.info("Demo mode active — AI offline.")
     if st.button("🗑️ Clear Chat"): st.session_state.messages=[]; st.rerun()
 
 # ---------- FOOTER ----------
 st.divider()
 st.caption("🌊 FloodGuard AI © 2025-26 | Gemini Flash + Mock BWDB/NASA | Developed by Zahid Hasan 💻 | [GitHub](https://github.com/zahid397/FloodGuard-AI)")
+st.caption("🔒 Powered by Google Gemini • Data Mocked from BWDB/NASA • Streamlit Cloud Secure Runtime")
