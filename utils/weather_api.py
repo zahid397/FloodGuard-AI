@@ -1,11 +1,15 @@
+import os
 import requests
 
 def get_weather_data(city="Dhaka"):
     """
     Fetch current weather data from OpenWeatherMap API.
-    Replace YOUR_API_KEY with a valid API key.
+    Reads API key securely from environment variable (GitHub Secrets).
     """
-    API_KEY = "YOUR_API_KEY"
+    API_KEY = os.getenv("OPENWEATHER_API_KEY")  # Secret from GitHub Actions / Streamlit Secrets
+    if not API_KEY:
+        return {"error": "API key not found. Please set OPENWEATHER_API_KEY as a secret."}
+
     URL = f"https://api.openweathermap.org/data/2.5/weather?q={city}&appid={API_KEY}&units=metric"
 
     try:
