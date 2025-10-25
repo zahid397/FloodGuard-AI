@@ -10,9 +10,10 @@ from io import BytesIO
 import numpy as np
 from datetime import datetime, timedelta
 
+# ---------- PAGE CONFIG ----------
 st.set_page_config(page_title="FloodGuard AI", page_icon="🌊", layout="wide")
 
-# ---------- FIXED FLOOD-SAFE THEME ----------
+# ---------- FLOOD-SAFE THEME ----------
 st.markdown("""
 <style>
 body, .stApp {
@@ -212,24 +213,32 @@ with tab2:
     fig.update_layout(plot_bgcolor="#f5f5f5", paper_bgcolor="#f5f5f5")
     st.plotly_chart(fig,use_container_width=True)
 
-# --- Map
+# --- Map (Fixed)
 with tab3:
     st.subheader("🗺️ Interactive Flood Risk Map")
-    bwdb=get_bwdb(); m=folium.Map(location=[23.8,90.4],zoom_start=7,tiles="CartoDB positron")
+    bwdb=get_bwdb()
+    m=folium.Map(location=[23.8,90.4],zoom_start=7,tiles="CartoDB positron")
+
     heat=[]
     for r in bwdb["rivers"]:
         color="red"if r["level"]>r["danger"]else"orange"if r["level"]>r["danger"]*0.9 else"green"
         folium.Marker(
             r["loc"],
             tooltip=f"{r['name']} – {r['level']} m",
-            popup=f"<b>{r['name']}</b><br>Station: {r['station']}<br>Level: {r['level']}m<br>Danger: {r['danger']}m<br>Risk: {color}",
+            popup=f"<b>{r['name']}</b><br>Station: {r['station']}<br>Level: {r['level']} m<br>Danger: {r['danger']} m<br>Risk: {color}",
             icon=folium.Icon(color=color,icon="tint",prefix="fa")
         ).add_to(m)
         pts=70 if color=="red" else 50 if color=="orange" else 30
         heat.extend(np.random.normal(loc=r["loc"],scale=[0.5,0.5],size=(pts,2)).tolist())
-    HeatMap(heat,radius=20,blur=15,min_opacity=0.25,max_zoom=13,
-            gradient={0.2:'#4caf50',0.5:'#ff9800',0.8:'#f44336'}).add_to(m)
-    st_folium(m,width="100%",height=520)
+
+    # ✅ Fixed visualization logic
+    if heat:
+        HeatMap(heat,radius=20,blur=15,min_opacity=0.25,max_zoom=13,
+                gradient={0.2:'#4caf50',0.5:'#ff9800',0.8:'#f44336'}).add_to(m)
+        st_folium(m,width="100%",height=520)
+        st.caption("🌍 Map rendered successfully ✅")
+    else:
+        st.warning("⚠️ Map data missing — refresh or predict again.")
 
 # --- Chatbot
 with tab4:
