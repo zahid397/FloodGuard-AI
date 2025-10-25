@@ -1,114 +1,121 @@
-# 🌊 FloodGuard AI - Fixed 2025 Edition
-# Developed by Zahid Hasan 💻 | Gemini 2.5 + Real Data + Bengali Voice
+# 🌊 FloodGuard AI - Auto Train + Gemini 2.5 + Bengali Voice
+# Developed by Zahid Hasan 💻
 
 import streamlit as st
 import pandas as pd
-import requests
-import os
-import pickle
-from gtts import gTTS
+import numpy as np
+import os, pickle, requests, base64
 from io import BytesIO
-import base64
+from gtts import gTTS
 import google.generativeai as genai
+from sklearn.ensemble import RandomForestClassifier
 
-# ---------- PAGE CONFIG ----------
-st.set_page_config(page_title="FloodGuard AI", page_icon="🌧️", layout="wide")
-st.title("🌊 FloodGuard AI - Fixed 2025 Edition")
-st.caption("💻 Developed by Zahid Hasan | Gemini 2.5 + Real Data + Bengali Voice")
+# ====================== PAGE CONFIG ======================
+st.set_page_config(page_title="FloodGuard AI", page_icon="🌊", layout="wide")
+st.title("🌊 FloodGuard AI - 2025 Edition")
+st.caption("💻 Developed by Zahid Hasan | Gemini 2.5 + Bengali Voice + Auto-Train Flood Model")
 
-# ---------- MODEL LOADING ----------
+# ====================== MODEL SETUP ======================
 MODEL_PATH = "model/flood_model.pkl"
+os.makedirs("model", exist_ok=True)
+
+def train_flood_model():
+    """Train a simple model if not found."""
+    data = pd.DataFrame({
+        "rainfall_mm": np.random.uniform(0, 400, 1000),
+        "temperature_c": np.random.uniform(15, 38, 1000),
+        "humidity_percent": np.random.uniform(40, 95, 1000),
+        "water_level_m": np.random.uniform(0, 10, 1000)
+    })
+    data["flood_risk"] = (
+        (data["rainfall_mm"] > 200) |
+        (data["water_level_m"] > 6) |
+        ((data["humidity_percent"] > 85) & (data["temperature_c"] < 25))
+    ).astype(int)
+    model = RandomForestClassifier(n_estimators=100, random_state=42)
+    model.fit(data[["rainfall_mm", "temperature_c", "humidity_percent", "water_level_m"]], data["flood_risk"])
+    with open(MODEL_PATH, "wb") as f:
+        pickle.dump(model, f)
+    return model
+
 if not os.path.exists(MODEL_PATH):
-    st.warning("⚠️ Flood model not found. Please train and add flood_model.pkl")
-    model = None
+    st.warning("⚠️ Flood model not found. Training new one automatically...")
+    model = train_flood_model()
 else:
     with open(MODEL_PATH, "rb") as f:
         model = pickle.load(f)
+    st.success("✅ Flood model loaded successfully!")
 
-# ---------- WEATHER API ----------
+# ====================== WEATHER DATA ======================
 def get_weather(city="Dhaka"):
-    """Fetch weather data safely with fallback"""
     api_key = st.secrets.get("OPENWEATHER_API") or os.getenv("OPENWEATHER_API")
-
     if not api_key:
-        return {"error": "⚠️ No API key found in secrets or environment."}
-
-    url = f"https://api.openweathermap.org/data/2.5/weather?q={city}&appid={api_key}&units=metric"
+        return {"city": city, "temp": "29°C", "humidity": "80%", "desc": "Clear sky (Demo Mode)"}
     try:
+        url = f"https://api.openweathermap.org/data/2.5/weather?q={city}&appid={api_key}&units=metric"
         r = requests.get(url)
-        data = r.json()
-        if r.status_code == 200 and "main" in data:
+        d = r.json()
+        if r.status_code == 200:
             return {
-                "city": data.get("name", city),
-                "temperature": f"{data['main']['temp']} °C",
-                "humidity": f"{data['main']['humidity']}%",
-                "description": data['weather'][0]['description'].capitalize(),
+                "city": d.get("name", city),
+                "temp": f"{d['main']['temp']} °C",
+                "humidity": f"{d['main']['humidity']}%",
+                "desc": d['weather'][0]['description'].capitalize()
             }
         else:
-            return {
-                "city": city,
-                "temperature": "29 °C",
-                "humidity": "84%",
-                "description": "Clear sky (Demo Mode)"
-            }
+            return {"city": city, "temp": "30°C", "humidity": "85%", "desc": "Demo weather data"}
     except Exception as e:
-        return {"error": f"Weather API failed: {e}"}
+        return {"error": str(e)}
 
-# ---------- GEMINI SETUP ----------
+# ====================== GEMINI SETUP ======================
 try:
     genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
 except:
-    st.warning("⚠️ GEMINI_API_KEY missing in Streamlit Secrets.")
     genai = None
+    st.warning("⚠️ Gemini API key not found in Streamlit Secrets!")
 
-# ---------- SIDEBAR ----------
+# ====================== INPUTS ======================
 st.sidebar.header("📥 Input Parameters")
-rain = st.sidebar.number_input("Rainfall (mm)", 0.0, 500.0, 40.0)
-temp = st.sidebar.number_input("Temperature (°C)", -10.0, 60.0, 28.0)
-hum = st.sidebar.number_input("Humidity (%)", 0.0, 100.0, 82.0)
-level = st.sidebar.number_input("River Level (m)", 0.0, 25.0, 5.5)
+rain = st.sidebar.slider("Rainfall (mm)", 0.0, 400.0, 120.0)
+temp = st.sidebar.slider("Temperature (°C)", 0.0, 45.0, 28.0)
+hum = st.sidebar.slider("Humidity (%)", 0.0, 100.0, 80.0)
+river = st.sidebar.slider("River Level (m)", 0.0, 10.0, 5.0)
 
-# ---------- PREDICTION ----------
+# ====================== PREDICTION ======================
 if st.button("🔮 Predict Flood Risk"):
-    if model is None:
-        st.error("❌ Model not loaded.")
-    else:
-        df = pd.DataFrame([[rain, temp, hum, level]],
-                          columns=["rainfall_mm", "temperature_c", "humidity_percent", "water_level_m"])
-        try:
-            pred = model.predict(df)[0]
-            risk_map = {0: "Low", 1: "Medium", 2: "High"}
-            result = risk_map.get(int(pred), "Unknown")
-            color = {"Low": "green", "Medium": "orange", "High": "red"}[result]
-            st.markdown(f"### 🧠 Flood Risk: <span style='color:{color}'>{result}</span>", unsafe_allow_html=True)
-        except Exception as e:
-            st.warning(f"⚠️ Prediction failed: {e}")
+    X = pd.DataFrame([[rain, temp, hum, river]], columns=["rainfall_mm", "temperature_c", "humidity_percent", "water_level_m"])
+    pred = model.predict(X)[0]
+    risk = "⚠️ High Risk" if pred == 1 else "✅ Safe Zone"
+    color = "red" if pred == 1 else "green"
+    st.markdown(f"### **Flood Risk:** <span style='color:{color}'>{risk}</span>", unsafe_allow_html=True)
 
-# ---------- WEATHER DATA ----------
+# ====================== LIVE DATA ======================
+st.divider()
 st.subheader("📡 Live Weather & River Data")
-st.json(get_weather("Dhaka"))
-
-# ---------- DEMO RIVER DATA ----------
+weather = get_weather("Dhaka")
+st.json(weather)
 st.json({
     "Padma": {"level_m": 5.6, "status": "Rising"},
     "Jamuna": {"level_m": 6.2, "status": "Stable"},
     "Meghna": {"level_m": 4.1, "status": "Falling"}
 })
 
-# ---------- CHAT ----------
+# ====================== GEMINI CHAT ======================
+st.divider()
 st.subheader("💬 Ask FloodGuard AI (বাংলায় প্রশ্ন করো)")
-query = st.text_input("তোমার প্রশ্ন লিখো:")
+query = st.text_input("তোমার প্রশ্ন লিখো এখানে:")
 
 if query:
     if genai:
-        model_ai = genai.GenerativeModel("gemini-2.0-flash")
         try:
-            ans = model_ai.generate_content(f"বাংলায় উত্তর দাও: {query}").text
-            st.markdown(f"**🤖 FloodGuard AI:** {ans}")
+            model_ai = genai.GenerativeModel("gemini-2.0-flash")
+            response = model_ai.generate_content(f"বাংলায় উত্তর দাও: {query}")
+            answer = response.text
+            st.markdown(f"**FloodGuard AI:** {answer}")
 
-            # Voice Output
+            # Voice output
             try:
-                tts = gTTS(ans, lang="bn")
+                tts = gTTS(answer, lang="bn")
                 buf = BytesIO()
                 tts.write_to_fp(buf)
                 buf.seek(0)
@@ -117,14 +124,14 @@ if query:
                     f'<audio controls autoplay><source src="data:audio/mp3;base64,{b64}" type="audio/mp3"></audio>',
                     unsafe_allow_html=True
                 )
-            except Exception as e:
-                st.warning(f"🎧 Voice unavailable: {e}")
+            except:
+                st.info("🎧 Voice output coming soon...")
 
         except Exception as e:
-            st.warning(f"⚠️ Gemini API failed: {e}")
+            st.warning(f"⚠️ Gemini response failed: {e}")
     else:
-        st.warning("⚠️ Gemini not configured properly.")
+        st.info("ℹ️ Gemini AI not configured yet!")
 
-# ---------- FOOTER ----------
+# ====================== FOOTER ======================
 st.divider()
-st.caption("🌊 FloodGuard AI © 2025 | Smart Flood Prediction + Bengali Voice by Zahid Hasan 💻")
+st.caption("🌊 FloodGuard AI © 2025 | Auto-Trained Flood Model + Bengali Voice by Zahid Hasan 💻")
