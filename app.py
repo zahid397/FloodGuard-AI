@@ -1,4 +1,4 @@
-# app.py — FloodGuard AI (Hackathon Final, Fixed Theme)
+# app.py — FloodGuard AI (Final Hackathon Version)
 import streamlit as st
 import pandas as pd
 import folium
@@ -14,11 +14,11 @@ from datetime import datetime, timedelta
 # ---- PAGE CONFIG ----
 st.set_page_config(page_title="FloodGuard AI", page_icon="🌊", layout="wide")
 
-# ---- THEME FIX (Readable Contrast) ----
+# ---- THEME FIX ----
 st.markdown("""
 <style>
 body, .stApp {
-    background-color: #d0f0f5 !important;
+    background-color: #d9f5ff !important;
     color: #0a192f !important;
     font-family: 'Inter', sans-serif;
 }
@@ -27,14 +27,21 @@ h1, h2, h3, h4, h5, h6, p, span, label, div { color: #0a192f !important; }
 
 /* Sidebar */
 [data-testid="stSidebar"] {
-    background-color: #b3e5fc !important;
+    background-color: #bde6fa !important;
     border-right: 1px solid #81d4fa !important;
 }
 [data-testid="stSidebar"] * { color: #0a192f !important; font-weight: 500 !important; }
-[data-testid="stSidebar"] input, [data-testid="stSidebar"] select {
+
+/* Inputs & Dropdowns */
+[data-testid="stSidebar"] input, [data-testid="stSidebar"] select, [data-testid="stSidebar"] textarea {
     background-color: #ffffff !important;
     color: #0a192f !important;
     border: 1px solid #0277bd !important;
+    border-radius: 6px !important;
+}
+div[data-baseweb="select"] > div {
+    background-color: #ffffff !important;
+    color: #0a192f !important;
     border-radius: 6px !important;
 }
 
@@ -77,12 +84,6 @@ h1, h2, h3, h4, h5, h6, p, span, label, div { color: #0a192f !important; }
     font-size: 16px !important;
 }
 [data-testid="stChatMessage"] p, [data-testid="stChatMessage"] div { color: #0a192f !important; }
-
-/* Footer */
-.stCaption, footer {
-    color: #0a192f !important;
-    font-size: 13px !important;
-}
 
 /* Mobile */
 @media (max-width:768px){
@@ -154,50 +155,16 @@ if st.sidebar.button("🔮 Predict Flood Risk",use_container_width=True):
 # ---- TABS ----
 tab1,tab2,tab3,tab4=st.tabs(["🔮 Prediction","📊 Dashboard","🗺️ Map","💬 Chatbot"])
 
-# ---- PREDICTION TAB ----
-with tab1:
-    st.subheader(f"📍 {loc} Flood Forecast")
-    r=st.session_state.risk
-    if r!="N/A":
-        color={"Low":"#4caf50","Medium":"#ff9800","High":"#f44336"}[r]
-        st.markdown(f"<h3 style='color:{color};'>🌀 {r} Flood Risk</h3>", unsafe_allow_html=True)
-        if r=="High": st.error("🚨 HIGH RISK! Move to higher ground immediately.")
-        elif r=="Medium": st.warning("⚠️ Moderate risk — Stay alert.")
-        else: st.success("✅ Low risk — Safe conditions.")
-    if st.session_state.ai_summary:
-        st.markdown("### 🤖 AI Safety Tips")
-        st.markdown(st.session_state.ai_summary)
-    if st.session_state.audio: st.audio(st.session_state.audio,format="audio/mp3")
-
-# ---- DASHBOARD TAB ----
-with tab2:
-    st.subheader("📈 30-Day Flood Trend (Simulated)")
-    bwdb=get_bwdb()
-    cols=st.columns(3)
-    for i,r in enumerate(bwdb["rivers"]):
-        d=r["level"]-r["danger"]*0.9
-        cols[i%3].metric(f"🌊 {r['name']} Level",f"{r['level']} m",delta=f"{d:+.1f} m")
-    days=pd.date_range(datetime.now()-timedelta(days=29),periods=30)
-    avg=np.mean([r["level"] for r in bwdb["rivers"]])
-    rain_d=(avg*10)+np.random.normal(0,20,30)
-    df=pd.DataFrame({"Date":days,"Rainfall (mm)":rain_d})
-    df["Risk"]=df["Rainfall (mm)"].apply(lambda r:"Low"if r<60 else"Medium"if r<120 else"High")
-    fig=px.line(df,x="Date",y="Rainfall (mm)",color="Risk",
-        color_discrete_map={"Low":"#4caf50","Medium":"#ff9800","High":"#f44336"},
-        title="Rainfall & Flood Risk Trend")
-    fig.update_layout(plot_bgcolor="#f5f5f5",paper_bgcolor="#f5f5f5")
-    st.plotly_chart(fig,use_container_width=True)
-
 # ---- MAP TAB ----
 with tab3:
     st.subheader("🗺️ Interactive Flood Risk Map")
     bwdb=get_bwdb()
-    m=folium.Map(location=[23.8,90.4],zoom_start=7,tiles="OpenStreetMap")
+    # Map focus on Bangladesh
+    m=folium.Map(location=[23.7,90.3],zoom_start=7,tiles="CartoDB positron")
     folium.TileLayer(
-        tiles="https://stamen-tiles.a.ssl.fastly.net/terrain/{z}/{x}/{y}.jpg",
-        attr="Map tiles by Stamen Design (CC BY 3.0) | Data © OpenStreetMap"
+        tiles="https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+        attr="© OpenStreetMap contributors"
     ).add_to(m)
-    folium.LayerControl().add_to(m)
     heat=[]
     for r in bwdb["rivers"]:
         color="red"if r["level"]>r["danger"]else"orange"if r["level"]>r["danger"]*0.9 else"green"
@@ -216,23 +183,6 @@ with tab3:
         st.success("🌍 Map rendered successfully ✅")
     else:
         st.warning("⚠️ No map data — try predicting again.")
-
-# ---- CHAT TAB ----
-with tab4:
-    st.subheader("💬 FloodGuard AI Chat (Bangla + English)")
-    for msg in st.session_state.messages:
-        with st.chat_message(msg["role"]): st.markdown(msg["content"])
-    if q:=st.chat_input("প্রশ্ন করুন / Ask a question..."):
-        st.session_state.messages.append({"role":"user","content":q})
-        with st.chat_message("user"): st.markdown(q)
-        with st.chat_message("assistant"):
-            if gemini:
-                res=gemini.generate_content(
-                    f"You are FloodGuard AI (Bangladesh flood expert). Answer shortly in Bangla + English (<100 words): {q}")
-                ans=res.text; st.markdown(ans)
-                st.session_state.messages.append({"role":"assistant","content":ans})
-            else: st.info("Demo mode active.")
-    if st.button("🗑️ Clear Chat"): st.session_state.messages=[]; st.rerun()
 
 # ---- FOOTER ----
 st.divider()
