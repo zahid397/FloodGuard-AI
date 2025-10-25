@@ -18,10 +18,8 @@ footer{visibility:hidden;}
 h1,h2,h3,h4,h5,h6,p,span,label,div{color:#00334d!important;}
 [data-testid="stSidebar"]{background:#b3e5fc!important;border-right:1px solid #81d4fa!important;}
 [data-testid="stSidebar"] *{color:#00334d!important;font-weight:500!important;}
-.stSelectbox div[data-baseweb="select"]>div{
-    background:#fff!important;color:#00334d!important;
-    border:1px solid #0277bd!important;border-radius:8px!important;
-}
+.stSelectbox div[data-baseweb="select"]>div{background:#fff!important;color:#00334d!important;
+    border:1px solid #0277bd!important;border-radius:8px!important;}
 .stButton>button{background:#0277bd!important;color:white!important;border-radius:8px;font-weight:600!important;}
 .stButton>button:hover{background:#01579b!important;}
 .stTabs [data-baseweb="tab-list"] button{background:#b3e5fc!important;color:#00334d!important;border-radius:8px;}
@@ -34,14 +32,14 @@ h1,h2,h3,h4,h5,h6,p,span,label,div{color:#00334d!important;}
 
 # ---------- HEADER ----------
 st.title("🌊 FloodGuard AI – Hackathon Final 2026")
-st.caption("💻 Zahid Hasan | Gemini Flash + BWDB Mock + Map + Chatbot + Smart Alerts")
+st.caption("💻 Zahid Hasan | Gemini Flash + BWDB Mock + Dashboard + Map + Chatbot")
 
 # ---------- SESSION ----------
 for k in ["risk","messages"]:
     if k not in st.session_state:
         st.session_state[k]="N/A" if k=="risk" else []
 
-# ---------- Gemini Chat init ----------
+# ---------- Gemini init ----------
 @st.cache_resource
 def init_gemini():
     try:
@@ -51,7 +49,7 @@ def init_gemini():
         return None
 gemini = init_gemini()
 
-# ---------- MOCK DATA ----------
+# ---------- MOCK ----------
 @st.cache_data(ttl=300)
 def get_bwdb():
     f=np.random.uniform(-0.5,0.5)
@@ -91,7 +89,7 @@ with tab1:
 
 # --- Dashboard ---
 with tab2:
-    st.subheader("📈 30-Day Flood Trend (Simulated)")
+    st.subheader("📈 30-Day Flood Risk Dashboard")
     df=pd.DataFrame({
         "Date":pd.date_range(datetime.now()-timedelta(days=29),periods=30),
         "Rainfall (mm)":np.random.randint(10,200,30)
@@ -100,28 +98,36 @@ with tab2:
     fig=px.line(df,x="Date",y="Rainfall (mm)",color="Risk",
         color_discrete_map={"Low":"#4caf50","Medium":"#ff9800","High":"#f44336"},
         title="Rainfall & Flood Risk Trend")
-    fig.update_layout(plot_bgcolor="#f5f5f5",paper_bgcolor="#f5f5f5")
+    fig.update_layout(
+        plot_bgcolor="#f5f5f5",paper_bgcolor="#f5f5f5",
+        font_color="#0a192f",title_font_color="#0a192f",
+        xaxis_title="Date",yaxis_title="Rainfall (mm)",
+        xaxis=dict(showgrid=True,gridcolor="#ccc"),yaxis=dict(showgrid=True,gridcolor="#ccc")
+    )
     st.plotly_chart(fig,use_container_width=True)
 
 # --- Map ---
 with tab3:
     st.subheader("🗺️ Interactive Flood Risk Map (Bangladesh)")
-    bwdb=get_bwdb()
-    m=folium.Map(location=[23.7,90.4],zoom_start=7,tiles="CartoDB positron")
-    heat=[]
-    for r in bwdb["rivers"]:
-        risk="High" if r["level"]>r["danger"] else "Medium" if r["level"]>r["danger"]*0.9 else "Low"
-        color={"Low":"green","Medium":"orange","High":"red"}[risk]
-        folium.Marker(
-            r["loc"],
-            tooltip=f"{r['name']} – {r['level']} m",
-            popup=f"<b>{r['name']}</b><br>Station:{r['station']}<br>Level:{r['level']}m<br>Danger:{r['danger']}m<br>Risk:{risk}",
-            icon=folium.Icon(color=color,icon="tint",prefix="fa")
-        ).add_to(m)
-        pts=70 if risk=="High" else 50 if risk=="Medium" else 30
-        heat.extend(np.random.normal(loc=r["loc"],scale=[0.4,0.4],size=(pts,2)).tolist())
-    if heat: HeatMap(heat,radius=18,blur=15,min_opacity=0.25).add_to(m)
-    st_folium(m,width="100%",height=540)
+    try:
+        bwdb=get_bwdb()
+        m=folium.Map(location=[23.7,90.4],zoom_start=7,tiles="CartoDB positron")
+        heat=[]
+        for r in bwdb["rivers"]:
+            risk="High" if r["level"]>r["danger"] else "Medium" if r["level"]>r["danger"]*0.9 else "Low"
+            color={"Low":"green","Medium":"orange","High":"red"}[risk]
+            folium.Marker(
+                r["loc"],
+                tooltip=f"{r['name']} – {r['level']} m",
+                popup=f"<b>{r['name']}</b><br>Station:{r['station']}<br>Level:{r['level']}m<br>Danger:{r['danger']}m<br>Risk:{risk}",
+                icon=folium.Icon(color=color,icon="tint",prefix="fa")
+            ).add_to(m)
+            pts=70 if risk=="High" else 50 if risk=="Medium" else 30
+            heat.extend(np.random.normal(loc=r["loc"],scale=[0.4,0.4],size=(pts,2)).tolist())
+        if heat: HeatMap(heat,radius=18,blur=15,min_opacity=0.3).add_to(m)
+        st_folium(m,width="100%",height=550)
+    except Exception:
+        st.warning("⚠️ Map failed to load. Try reloading page or enable network access.")
 
 # --- Chatbot ---
 with tab4:
@@ -133,11 +139,11 @@ with tab4:
         with st.chat_message("user"): st.markdown(q)
         with st.chat_message("assistant"):
             if gemini:
-                res=gemini.generate_content(f"You are FloodGuard AI (Bangladesh flood expert). Answer shortly in Bangla + English: {q}")
+                res=gemini.generate_content(f"You are FloodGuard AI, a helpful expert on Bangladesh floods. Reply short in Bangla + English:\n\n{q}")
                 ans=res.text; st.markdown(ans)
                 st.session_state.messages.append({"role":"assistant","content":ans})
             else:
-                st.info("🌐 Gemini API not active — demo mode running.")
+                st.info("🌐 Gemini API not active — demo mode.")
     if st.button("🗑️ Clear Chat History"):
         st.session_state.messages=[]; st.rerun()
 
