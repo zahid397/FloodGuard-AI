@@ -27,6 +27,11 @@ st.markdown("""
     color: #0a192f !important;
     font-weight: 500 !important;
 }
+div[data-baseweb="select"] > div {
+    background-color: #ffffff !important;
+    color: #0a192f !important;
+    border-radius: 6px !important;
+}
 h1 {
     color: #0a192f !important;
     text-align: center;
@@ -38,10 +43,15 @@ h2, h3, h4, h5 {
 }
 .subtitle {
     text-align: center;
-    color: #0d47a1 !important;
-    font-size: 16px !important;
-    font-weight: 600;
-    margin-bottom: 20px;
+    color: #08336e !important;
+    font-size: 17px !important;
+    font-weight: 700;
+    text-shadow: 0 0 6px rgba(255,255,255,0.9);
+    background: rgba(187,222,251,0.6);
+    border-radius: 8px;
+    padding: 6px 10px;
+    display: inline-block;
+    margin-bottom: 10px;
 }
 .stButton>button {
     background-color: #1565c0 !important;
@@ -50,28 +60,38 @@ h2, h3, h4, h5 {
     font-weight: 600;
 }
 .stButton>button:hover { background-color: #0d47a1 !important; }
-.stAlert, .stMarkdown, .stText, .stDataFrame { color: #0a192f !important; }
 @media (max-width:768px){
     .stApp { font-size:15px!important; }
     h1,h2,h3{ font-size:20px!important; }
+    .subtitle{ font-size:14px!important; }
     .stButton>button{ width:100%!important; }
-    .subtitle { font-size:14px!important; }
 }
 </style>
 """, unsafe_allow_html=True)
 
 # ---------- HEADER ----------
-st.markdown("<h1>🌊 FloodGuard AI – Hackathon Final 2026</h1>", unsafe_allow_html=True)
 st.markdown("""
-<p class='subtitle'>
-💻 <b>Zahid Hasan</b> | Gemini 2.5 Flash ⚡ | Smart Dashboard 📊 | Weather ☁️ | River Board 🌊
+<h1 style='text-align:center;color:#0a192f;font-weight:800;margin-bottom:8px;'>
+🌊 FloodGuard AI – Hackathon Pro Final 2026
+</h1>
+
+<p style='text-align:center;
+    font-size:17px;
+    color:#08336e;
+    font-weight:700;
+    text-shadow:0px 0px 6px rgba(255,255,255,0.9);
+    background:rgba(187,222,251,0.6);
+    border-radius:8px;
+    padding:6px 10px;
+    display:inline-block;'>
+💻 Zahid Hasan | Gemini 2.5 Flash ⚡ | Smart Dashboard 📊 | Weather ☁️ | River Board 🌊
 </p>
 """, unsafe_allow_html=True)
 
-# ---------- SESSION STATE ----------
-for key in ["risk", "ai_summary", "audio", "messages"]:
-    if key not in st.session_state:
-        st.session_state[key] = "N/A" if key == "risk" else None if key in ["ai_summary","audio"] else []
+# ---------- SESSION ----------
+for k in ["risk","ai_summary","audio","messages"]:
+    if k not in st.session_state:
+        st.session_state[k] = "N/A" if k=="risk" else None if k in ["ai_summary","audio"] else []
 
 # ---------- GEMINI ----------
 @st.cache_resource
@@ -91,10 +111,10 @@ def init_gemini():
 
 gemini = init_gemini()
 
-# ---------- SIMPLE MODEL ----------
+# ---------- SIMPLE PREDICT ----------
 def predict_flood(r, t, h, l):
-    score = (r/100)+(l/8)+(h/100)-(t/40)
-    return "High" if score>2 else "Medium" if score>1 else "Low"
+    s = (r/100)+(l/8)+(h/100)-(t/40)
+    return "High" if s>2 else "Medium" if s>1 else "Low"
 
 # ---------- SIDEBAR ----------
 with st.sidebar:
@@ -103,32 +123,31 @@ with st.sidebar:
     temp = st.slider("🌡️ Temperature (°C)", 10, 40, 28)
     hum = st.slider("💧 Humidity (%)", 30, 100, 85)
     level = st.slider("🌊 River Level (m)", 0.0, 20.0, 6.0)
-    loc = st.selectbox("📍 Location", ["Dhaka", "Sylhet", "Rajshahi", "Chittagong"])
+    loc = st.selectbox("📍 Location", ["Dhaka","Sylhet","Rajshahi","Chittagong"])
     if st.button("🔮 Predict Flood Risk", use_container_width=True):
         st.session_state.risk = predict_flood(rain,temp,hum,level)
         if gemini:
             try:
-                prompt = f"{loc} flood forecast → Rain {rain}mm, River {level}m, Humidity {hum}%, Temp {temp}°C, Risk={st.session_state.risk}. Give 2 short Bangla safety tips + English translation."
+                prompt = f"{loc} Flood Forecast — Rain {rain}mm, River {level}m, Humidity {hum}%, Temp {temp}°C, Risk={st.session_state.risk}. Give 2 short Bangla safety tips + English translation."
                 res = gemini.generate_content(prompt)
                 st.session_state.ai_summary = res.text
-                short = res.text.split("\\n")[0][:100]
+                short = res.text.split("\n")[0][:100]
                 tts = gTTS(short, lang="bn")
-                buf = BytesIO()
-                tts.write_to_fp(buf)
+                buf = BytesIO(); tts.write_to_fp(buf)
                 st.session_state.audio = buf.getvalue()
             except Exception as e:
-                st.session_state.ai_summary = f"AI Error: {e}"
+                st.session_state.ai_summary = f"AI error: {e}"
 
 # ---------- FORECAST ----------
 st.subheader(f"📍 {loc} Flood Forecast")
 risk = st.session_state.risk
-colors = {"Low":"#4caf50","Medium":"#ff9800","High":"#f44336"}
-if risk == "N/A":
+cmap = {"Low":"#4caf50","Medium":"#ff9800","High":"#f44336"}
+if risk=="N/A":
     st.info("👉 Use sidebar to predict flood risk.")
 else:
-    st.markdown(f"<h3 style='color:{colors[risk]};text-align:center;'>🌀 {risk} Flood Risk</h3>", unsafe_allow_html=True)
-    if risk == "High": st.error("🚨 HIGH RISK! Move to higher ground immediately.")
-    elif risk == "Medium": st.warning("⚠️ Moderate risk — Stay alert.")
+    st.markdown(f"<h3 style='color:{cmap[risk]};text-align:center;'>🌀 {risk} Flood Risk</h3>", unsafe_allow_html=True)
+    if risk=="High": st.error("🚨 HIGH RISK! Move to higher ground immediately.")
+    elif risk=="Medium": st.warning("⚠️ Moderate risk — Stay alert.")
     else: st.success("✅ Low risk — Safe conditions.")
 if st.session_state.ai_summary: st.write(st.session_state.ai_summary)
 if st.session_state.audio: st.audio(st.session_state.audio, format="audio/mp3")
@@ -143,10 +162,8 @@ rivers = [
 for r in rivers:
     r["risk"] = "High" if r["level"]>r["danger"] else "Medium" if r["level"]>r["danger"]*0.9 else "Low"
 df = pd.DataFrame(rivers)
-df["Indicator"] = df["risk"].map({"High":"🔴","Medium":"🟠","Low":"🟢"})
-st.dataframe(df.rename(columns={
-    "name":"River","station":"Station","level":"Level (m)","danger":"Danger (m)","risk":"Risk"
-}), use_container_width=True, hide_index=True)
+st.dataframe(df.rename(columns={"name":"River","station":"Station","level":"Level (m)","danger":"Danger (m)","risk":"Risk"}),
+             use_container_width=True, hide_index=True)
 
 # ---------- WEATHER ----------
 st.subheader("☁️ Daily Weather & Rainfall Report (OpenWeather)")
@@ -155,14 +172,12 @@ try:
     if key:
         res = requests.get(f"https://api.openweathermap.org/data/2.5/weather?q={loc}&appid={key}&units=metric").json()
         desc = res["weather"][0]["description"].title()
-        temp_now = res["main"]["temp"]
-        hum_now = res["main"]["humidity"]
-        rain_mm = res.get("rain",{}).get("1h",0)
-        wind = res["wind"]["speed"]
-        st.success(f"🌤️ {desc} | 🌡️ {temp_now}°C | 💧 {hum_now}% | 🌧️ {rain_mm} mm/h | 💨 {wind} m/s")
+        tempn = res["main"]["temp"]; hum = res["main"]["humidity"]
+        rain_mm = res.get("rain",{}).get("1h",0); wind = res["wind"]["speed"]
+        st.success(f"🌤️ {desc} | 🌡️ {tempn}°C | 💧 {hum}% | 🌧️ {rain_mm}mm/h | 💨 {wind}m/s")
     else:
         st.info("⚙️ OpenWeather API not set — showing simulated data.")
-        st.write("🌥️ Cloudy | 🌡️ 29°C | 💧 83% | 🌧️ 2mm/h | 💨 5 m/s")
+        st.write("🌥️ Cloudy | 🌡️ 29°C | 💧 83% | 🌧️ 2mm/h | 💨 5m/s")
 except Exception as e:
     st.warning(f"Weather fetch failed: {e}")
 
