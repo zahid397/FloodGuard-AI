@@ -35,24 +35,6 @@ h1, h2, h3, h4, h5, h6, p, span, label, div {
     color: #0a192f !important;
     font-weight: 500 !important;
 }
-[data-testid="stSidebar"] input,
-[data-testid="stSidebar"] select,
-[data-testid="stSidebar"] textarea {
-    background-color: #ffffff !important;
-    color: #0a192f !important;
-    border: 1px solid #0277bd !important;
-    border-radius: 6px !important;
-}
-
-/* Dropdown fix */
-.stSelectbox [data-baseweb="select"] div {
-    background-color: #ffffff !important;
-    color: #0a192f !important;
-}
-.stSelectbox [role="option"] {
-    background-color: #ffffff !important;
-    color: #0a192f !important;
-}
 
 /* Buttons */
 .stButton>button {
@@ -92,17 +74,10 @@ h1, h2, h3, h4, h5, h6, p, span, label, div {
     background: #fff !important;
     color: #0a192f !important;
 }
-.js-plotly-plot text, .gtitle, .legendtext, .xtick text, .ytick text {
+.js-plotly-plot text, .legendtext, .xtick text, .ytick text {
     fill: #0a192f !important;
 }
 .plotly .modebar { background-color: #0277bd !important; color: white !important; }
-
-/* Metrics */
-.stMetric {
-    background-color: #f5f5f5 !important;
-    border-radius: 12px !important;
-    border: 1px solid #b3e5fc !important;
-}
 
 /* Alerts */
 .stSuccess {background:#e8f5e9!important;color:#2e7d32!important;border:1px solid #4caf50!important;}
@@ -113,7 +88,6 @@ h1, h2, h3, h4, h5, h6, p, span, label, div {
 @media (max-width:768px){
     body{font-size:14px!important;font-weight:500!important;}
     .stButton>button{font-size:15px!important;padding:8px!important;}
-    .leaflet-container {font-size:12px!important;}
 }
 </style>
 """, unsafe_allow_html=True)
@@ -150,7 +124,7 @@ def get_bwdb():
         {"name":"Meghna","station":"Ashuganj","level":round(7.6+f,2),"danger":9.2,"loc":[24.02,91.00]}
     ]}
 
-# ---------- PREDICT ----------
+# ---------- SIMPLE MODEL ----------
 def simple_predict(r,t,h,l):
     s=(r/100)+(l/8)+(h/100)-(t/40)
     return "High" if s>2 else "Medium" if s>1 else "Low"
@@ -214,13 +188,18 @@ with tab2:
     fig.update_layout(plot_bgcolor="#f5f5f5", paper_bgcolor="#f5f5f5")
     st.plotly_chart(fig,use_container_width=True)
 
-# --- Map
+# --- Map (Fixed)
 with tab3:
     st.subheader("🗺️ Interactive Flood Risk Map")
     with st.spinner("Loading map visualization..."):
         bwdb=get_bwdb()
-        m=folium.Map(location=[23.8,90.4],zoom_start=7,tiles="OpenStreetMap",attr="OpenStreetMap")
-        folium.TileLayer("Stamen Terrain").add_to(m)
+        m=folium.Map(location=[23.8,90.4],zoom_start=7,tiles="OpenStreetMap")
+
+        # ✅ Fixed Stamen Terrain Layer
+        folium.TileLayer(
+            tiles="https://stamen-tiles.a.ssl.fastly.net/terrain/{z}/{x}/{y}.jpg",
+            attr="Map tiles by Stamen Design (CC BY 3.0) | Data © OpenStreetMap"
+        ).add_to(m)
         folium.LayerControl().add_to(m)
 
         heat=[]
@@ -239,9 +218,8 @@ with tab3:
             HeatMap(heat,radius=20,blur=15,min_opacity=0.25,max_zoom=13,
                 gradient={0.2:'#4caf50',0.5:'#ff9800',0.8:'#f44336'}).add_to(m)
             st_folium(m,width="100%",height=520)
-            st.success("🌍 Map rendered successfully ✅")
         else:
-            st.warning("⚠️ No map data — try predicting again.")
+            st.warning("⚠️ No data available. Please predict again.")
 
 # --- Chatbot
 with tab4:
@@ -263,4 +241,3 @@ with tab4:
 # ---------- FOOTER ----------
 st.divider()
 st.caption("🌊 FloodGuard AI © 2025-26 | Gemini Flash + Mock BWDB/NASA | Developed by Zahid Hasan 💻 | [GitHub](https://github.com/zahid397/FloodGuard-AI)")
-st.caption("🔒 Powered by Google Gemini • Data Mocked from BWDB/NASA • Streamlit Cloud Secure Runtime")
