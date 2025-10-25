@@ -1,13 +1,10 @@
-# FloodGuard AI – Gemini + ML + Streamlit (Stable)
 streamlit==1.39.0
 pandas==2.2.3
 numpy==1.26.4
 scikit-learn==1.5.2
-requests==2.32.3
-google-generativeai==0.5.4
-plotly==5.24.1
 folium==0.17.0
 streamlit-folium==0.22.0
-streamlit-autorefresh==1.0.1
-python-dateutil==2.9.0
-googletrans==4.0.0rc1
+plotly==5.24.1
+requests==2.32.3
+gTTS==2.5.1
+google-generativeai==0.5.4
