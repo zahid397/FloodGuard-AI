@@ -7,10 +7,6 @@ import requests
 import google.generativeai as genai
 from gtts import gTTS
 from io import BytesIO
-from streamlit_autorefresh import st_autorefresh
-
-# ---------- AUTO REFRESH ----------
-st_autorefresh(interval=3600000, key="auto_refresh")  # every 1 hour
 
 # ---------- PAGE CONFIG ----------
 st.set_page_config(page_title="FloodGuard AI", page_icon="🌊", layout="wide")
@@ -28,6 +24,9 @@ h1,h2,h3{color:#0a192f!important;font-weight:700!important;}
 [data-testid="stChatMessage"]{background:#f0f9ff;border-radius:10px;padding:10px;margin-bottom:5px;}
 .success-box{background:white;border-left:6px solid #4caf50;color:#1b5e20;font-weight:600;
     border-radius:6px;padding:10px;}
+.api-box{background:linear-gradient(135deg,#dbeafe 0%,#e8f3ff 100%);
+    border-left:6px solid #0d47a1;color:#0a192f;border-radius:8px;
+    padding:12px;font-weight:600;box-shadow:0 3px 6px rgba(0,0,0,0.05);}
 @media(max-width:768px){.stApp{font-size:15px!important;}.stButton>button{width:100%!important;}}
 </style>
 """, unsafe_allow_html=True)
@@ -46,9 +45,9 @@ display:inline-block;'>
 """, unsafe_allow_html=True)
 
 # ---------- SESSION ----------
-for k in ["risk","ai_summary","audio","messages"]:
+for k in ["risk","ai_summary","audio","messages","loc"]:
     if k not in st.session_state:
-        st.session_state[k]="N/A" if k=="risk" else None if k in ["ai_summary","audio"] else []
+        st.session_state[k] = "N/A" if k=="risk" else None if k in ["ai_summary","audio","loc"] else []
 
 # ---------- GEMINI ----------
 @st.cache_resource
@@ -56,34 +55,63 @@ def init_gemini():
     try:
         key = st.secrets.get("GEMINI_API_KEY")
         if not key:
-            st.warning("⚠️ Gemini API Key missing — demo mode")
             return None
         genai.configure(api_key=key)
         model = genai.GenerativeModel("gemini-2.5-flash")
-        st.markdown("<div class='success-box'>✅ Gemini 2.5 Flash Connected</div>",unsafe_allow_html=True)
+        st.markdown("<div class='success-box'>✅ Gemini 2.5 Flash Connected</div>", unsafe_allow_html=True)
         return model
     except Exception as e:
-        st.error(f"Gemini setup failed → {e}")
+        st.warning(f"Gemini setup failed → {e}")
         return None
 
 gemini = init_gemini()
 
+# ---------- SIMPLE PREDICT ----------
+def predict_flood(r, t, h, l):
+    s = (r/100)+(l/8)+(h/100)-(t/40)
+    return "High" if s>2 else "Medium" if s>1 else "Low"
+
+# ---------- SIDEBAR ----------
+with st.sidebar:
+    st.header("📥 Flood Risk Inputs")
+    rain = st.slider("🌧️ Rainfall (mm)", 0, 500, 100)
+    temp = st.slider("🌡️ Temperature (°C)", 10, 40, 28)
+    hum = st.slider("💧 Humidity (%)", 30, 100, 85)
+    level = st.slider("🌊 River Level (m)", 0.0, 20.0, 6.0)
+    loc = st.selectbox("📍 Location", ["Dhaka","Sylhet","Rajshahi","Chittagong"])
+    st.session_state.loc = loc
+
+    if st.button("🔮 Predict Flood Risk", use_container_width=True):
+        st.session_state.risk = predict_flood(rain,temp,hum,level)
+        if gemini:
+            try:
+                prompt = f"{loc} Flood Forecast — Rain {rain}mm, River {level}m, Humidity {hum}%, Temp {temp}°C, Risk={st.session_state.risk}. Give 2 short Bangla safety tips + English translation."
+                res = gemini.generate_content(prompt)
+                st.session_state.ai_summary = res.text
+                short = res.text.split("\n")[0][:100]
+                tts = gTTS(short, lang="bn")
+                buf = BytesIO(); tts.write_to_fp(buf)
+                st.session_state.audio = buf.getvalue()
+            except Exception as e:
+                st.session_state.ai_summary = f"AI error: {e}"
+
 # ---------- WEATHER ----------
-st.subheader("☁️ Daily Weather & Rainfall Report (Live)")
+st.subheader("☁️ Daily Weather & Rainfall Report (OpenWeather)")
 try:
-    key = st.secrets["OPENWEATHER_KEY"]
-    loc = st.session_state.get("loc", "Dhaka")
-    res = requests.get(
-        f"https://api.openweathermap.org/data/2.5/weather?q={loc}&appid={key}&units=metric"
-    ).json()
-    desc = res["weather"][0]["description"].title()
-    tempn = res["main"]["temp"]
-    hum = res["main"]["humidity"]
-    rain_mm = res.get("rain", {}).get("1h", 0)
-    wind = res["wind"]["speed"]
-    st.success(f"🌤️ {desc} | 🌡️ {tempn}°C | 💧 {hum}% | 🌧️ {rain_mm} mm/h | 💨 {wind} m/s")
+    key = st.secrets.get("OPENWEATHER_KEY")
+    loc = st.session_state.get("loc","Dhaka")
+    if key:
+        res = requests.get(
+            f"https://api.openweathermap.org/data/2.5/weather?q={loc}&appid={key}&units=metric"
+        ).json()
+        desc = res["weather"][0]["description"].title()
+        tempn = res["main"]["temp"]; hum = res["main"]["humidity"]
+        rain_mm = res.get("rain",{}).get("1h",0); wind = res["wind"]["speed"]
+        st.success(f"🌤️ {desc} | 🌡️ {tempn}°C | 💧 {hum}% | 🌧️ {rain_mm} mm/h | 💨 {wind} m/s")
+    else:
+        pass  # no fake text box anymore
 except Exception as e:
-    st.error(f"Weather fetch failed: {e}")
+    st.warning(f"Weather fetch failed: {e}")
 
 # ---------- RIVER BOARD ----------
 st.subheader("🌊 River Status Board (Live Simulation)")
