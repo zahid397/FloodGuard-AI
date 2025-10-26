@@ -14,20 +14,51 @@ st.set_page_config(page_title="FloodGuard AI", page_icon="🌊", layout="wide")
 # ---------- STYLE ----------
 st.markdown("""
 <style>
-.stApp{background:#e3f2fd!important;color:#0a192f!important;font-family:'Inter',sans-serif;}
-[data-testid="stSidebar"]{background:#bbdefb!important;border-right:2px solid #64b5f6!important;}
-[data-testid="stSidebar"] *{color:#0a192f!important;}
-h1,h2,h3{color:#0a192f!important;font-weight:700!important;}
-.stButton>button{background:#1565c0!important;color:white!important;border-radius:8px;font-weight:600;}
-.stButton>button:hover{background:#0d47a1!important;}
-[data-testid="stChatMessage"] p{color:#0a192f!important;font-weight:500;}
-[data-testid="stChatMessage"]{background:#f0f9ff;border-radius:10px;padding:10px;margin-bottom:5px;}
-.success-box{background:white;border-left:6px solid #4caf50;color:#1b5e20;font-weight:600;
-    border-radius:6px;padding:10px;}
-.api-box{background:linear-gradient(135deg,#dbeafe 0%,#e8f3ff 100%);
-    border-left:6px solid #0d47a1;color:#0a192f;border-radius:8px;
-    padding:12px;font-weight:600;box-shadow:0 3px 6px rgba(0,0,0,0.05);}
-@media(max-width:768px){.stApp{font-size:15px!important;}.stButton>button{width:100%!important;}}
+.stApp {
+    background-color: #e8f4fd !important;
+    color: #0a192f !important;
+    font-family: 'Inter', sans-serif;
+}
+[data-testid="stSidebar"] {
+    background-color: #cde4fb !important;
+    border-right: 2px solid #64b5f6 !important;
+}
+[data-testid="stSidebar"] * { color: #0a192f !important; }
+h1, h2, h3 { color: #0a192f !important; font-weight: 700 !important; }
+.stButton>button {
+    background-color: #1976d2 !important;
+    color: white !important;
+    border-radius: 8px;
+    font-weight: 600;
+}
+.stButton>button:hover { background-color: #0d47a1 !important; }
+.success-box {
+    background-color: #ffffff !important;
+    border-left: 6px solid #43a047;
+    color: #1b5e20;
+    font-weight: 600;
+    border-radius: 6px;
+    padding: 10px;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+}
+[data-testid="stChatMessage"] {
+    background: #f0f9ff;
+    border-radius: 10px;
+    padding: 10px;
+    margin-bottom: 5px;
+}
+[data-testid="stChatMessage"] p {
+    color: #0a192f !important;
+    font-weight: 500;
+}
+.plot-container {
+    background: #fdfdfd !important;
+    border-radius: 10px !important;
+}
+@media (max-width:768px) {
+    .stApp { font-size: 15px !important; }
+    .stButton>button { width: 100% !important; }
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -66,11 +97,6 @@ def init_gemini():
 
 gemini = init_gemini()
 
-# ---------- SIMPLE PREDICT ----------
-def predict_flood(r, t, h, l):
-    s = (r/100)+(l/8)+(h/100)-(t/40)
-    return "High" if s>2 else "Medium" if s>1 else "Low"
-
 # ---------- SIDEBAR ----------
 with st.sidebar:
     st.header("📥 Flood Risk Inputs")
@@ -80,20 +106,15 @@ with st.sidebar:
     level = st.slider("🌊 River Level (m)", 0.0, 20.0, 6.0)
     loc = st.selectbox("📍 Location", ["Dhaka","Sylhet","Rajshahi","Chittagong"])
     st.session_state.loc = loc
-
     if st.button("🔮 Predict Flood Risk", use_container_width=True):
-        st.session_state.risk = predict_flood(rain,temp,hum,level)
+        st.session_state.risk = "High" if (rain+level+hum-temp)>250 else "Medium" if (rain+level)>150 else "Low"
         if gemini:
-            try:
-                prompt = f"{loc} Flood Forecast — Rain {rain}mm, River {level}m, Humidity {hum}%, Temp {temp}°C, Risk={st.session_state.risk}. Give 2 short Bangla safety tips + English translation."
-                res = gemini.generate_content(prompt)
-                st.session_state.ai_summary = res.text
-                short = res.text.split("\n")[0][:100]
-                tts = gTTS(short, lang="bn")
-                buf = BytesIO(); tts.write_to_fp(buf)
-                st.session_state.audio = buf.getvalue()
-            except Exception as e:
-                st.session_state.ai_summary = f"AI error: {e}"
+            prompt = f"{loc} flood forecast. Rain={rain}, River={level}, Hum={hum}, Temp={temp}. Give 2 Bangla safety tips."
+            res = gemini.generate_content(prompt)
+            st.session_state.ai_summary = res.text
+            tts = gTTS(res.text.split("\n")[0][:100], lang="bn")
+            buf = BytesIO(); tts.write_to_fp(buf); buf.seek(0)
+            st.session_state.audio = buf.getvalue()
 
 # ---------- WEATHER ----------
 st.subheader("☁️ Daily Weather & Rainfall Report (OpenWeather)")
@@ -107,37 +128,31 @@ try:
         desc = res["weather"][0]["description"].title()
         tempn = res["main"]["temp"]; hum = res["main"]["humidity"]
         rain_mm = res.get("rain",{}).get("1h",0); wind = res["wind"]["speed"]
-        st.success(f"🌤️ {desc} | 🌡️ {tempn}°C | 💧 {hum}% | 🌧️ {rain_mm} mm/h | 💨 {wind} m/s")
-    else:
-        pass  # no fake text box anymore
-except Exception as e:
-    st.warning(f"Weather fetch failed: {e}")
+        st.success(f"🌤️ {desc} | 🌡️ {tempn}°C | 💧 {hum}% | 🌧️ {rain_mm}mm/h | 💨 {wind}m/s")
+except:
+    st.info("⚙️ Weather API updating...")
 
 # ---------- RIVER BOARD ----------
 st.subheader("🌊 River Status Board (Live Simulation)")
 rivers=[
-    {"name":"Padma","station":"Goalundo","level":8.7,"danger":10.5},
-    {"name":"Jamuna","station":"Sirajganj","level":9.3,"danger":11.0},
-    {"name":"Meghna","station":"Ashuganj","level":7.8,"danger":9.2},
+    {"River":"Padma","Station":"Goalundo","Level (m)":8.7,"Danger (m)":10.5,"Risk":"Low"},
+    {"River":"Jamuna","Station":"Sirajganj","Level (m)":9.3,"Danger (m)":11.0,"Risk":"Low"},
+    {"River":"Meghna","Station":"Ashuganj","Level (m)":7.8,"Danger (m)":9.2,"Risk":"Low"},
 ]
-for r in rivers:
-    r["risk"]="High" if r["level"]>r["danger"] else "Medium" if r["level"]>r["danger"]*0.9 else "Low"
-df = pd.DataFrame(rivers)
-st.dataframe(df.rename(columns={"name":"River","station":"Station","level":"Level (m)","danger":"Danger (m)","risk":"Risk"}),
-             use_container_width=True,hide_index=True)
+st.dataframe(pd.DataFrame(rivers), use_container_width=True, hide_index=True)
 
-# ---------- DASHBOARD ----------
+# ---------- TREND ----------
 st.subheader("📊 30-Day Rainfall & Flood Risk Trend")
 dates = pd.date_range(datetime.now()-timedelta(days=29), periods=30)
 rain = np.clip(50+30*np.sin(np.linspace(0,3,30))+np.random.normal(0,10,30),0,200)
 risk = ["Low" if r<60 else "Medium" if r<120 else "High" for r in rain]
 df = pd.DataFrame({"Date":dates,"Rainfall (mm)":rain,"Risk":risk})
 fig = px.line(df,x="Date",y="Rainfall (mm)",color="Risk",
-    color_discrete_map={"Low":"#4caf50","Medium":"#ff9800","High":"#f44336"},
+    color_discrete_map={"Low":"#43a047","Medium":"#fb8c00","High":"#e53935"},
     title="Rainfall vs Flood Risk Trend")
 st.plotly_chart(fig,use_container_width=True)
 
-# ---------- CHATBOT (WITH VOICE) ----------
+# ---------- CHATBOT ----------
 st.subheader("💬 FloodGuard AI Chatbot (Bangla + English)")
 for msg in st.session_state.messages:
     with st.chat_message(msg["role"]): st.markdown(msg["content"])
@@ -147,22 +162,15 @@ if q := st.chat_input("Ask a question / প্রশ্ন করুন..."):
     with st.chat_message("user"): st.markdown(q)
     with st.chat_message("assistant"):
         if gemini:
+            reply = gemini.generate_content(f"Bangladesh flood expert reply in Bangla+English: {q}").text
+            st.markdown(reply)
             try:
-                reply = gemini.generate_content(
-                    f"You are FloodGuard AI (Bangladesh flood expert). Reply in Bangla + English: {q}"
-                ).text
-                st.markdown(reply)
-
-                # 🔊 Bangla Voice Playback
-                bangla = reply.split("\n")[0][:150]
-                tts = gTTS(bangla, lang="bn")
+                tts = gTTS(reply.split("\n")[0][:100], lang="bn")
                 buf = BytesIO(); tts.write_to_fp(buf); buf.seek(0)
                 st.audio(buf, format="audio/mp3")
-
-            except Exception as e:
-                st.error(f"AI Error: {e}")
+            except: pass
         else:
-            st.markdown("Demo mode — Gemini API key missing.")
+            st.warning("Demo mode — Gemini API key missing.")
         st.session_state.messages.append({"role":"assistant","content":reply})
 
 if st.button("🗑️ Clear Chat"): st.session_state.messages=[]; st.rerun()
@@ -172,4 +180,4 @@ st.divider()
 st.markdown("""
 🌊 **FloodGuard AI © 2026** | Developed by **Zahid Hasan** 💻  
 🔗 [GitHub Repository](https://github.com/zahid397/FloodGuard-AI)
-""",unsafe_allow_html=True)
+""", unsafe_allow_html=True)
