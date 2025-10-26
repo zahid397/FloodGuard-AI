@@ -14,33 +14,56 @@ st.set_page_config(page_title="FloodGuard AI", page_icon="🌊", layout="wide")
 # ---------- STYLE ----------
 st.markdown("""
 <style>
+/* 🌊 Base app background */
 .stApp {
-    background-color: #e8f4fd !important;
+    background-color: #eaf4fc !important;
     color: #0a192f !important;
     font-family: 'Inter', sans-serif;
 }
+
+/* 📚 Sidebar styling */
 [data-testid="stSidebar"] {
-    background-color: #cde4fb !important;
+    background: linear-gradient(180deg, #dbeafe 0%, #e3f2fd 100%) !important;
     border-right: 2px solid #64b5f6 !important;
 }
-[data-testid="stSidebar"] * { color: #0a192f !important; }
-h1, h2, h3 { color: #0a192f !important; font-weight: 700 !important; }
-.stButton>button {
-    background-color: #1976d2 !important;
-    color: white !important;
-    border-radius: 8px;
+[data-testid="stSidebar"] * {
+    color: #0a192f !important;
+}
+
+/* 🧭 Input controls: dropdown / slider */
+div[data-baseweb="select"] {
+    background: #ffffff !important;
+    border-radius: 10px !important;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.08) !important;
+    padding: 6px !important;
+}
+div[data-baseweb="select"]:hover {
+    box-shadow: 0 0 0 2px #64b5f6 inset !important;
+}
+
+/* 🌤️ Weather info box */
+.weather-box {
+    background: linear-gradient(135deg, #f8fdff 0%, #e6f4ff 100%);
+    border-radius: 12px;
+    border: 1px solid rgba(13,71,161,0.15);
+    padding: 14px 16px;
+    margin-bottom: 10px;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.08);
     font-weight: 600;
 }
-.stButton>button:hover { background-color: #0d47a1 !important; }
+
+/* ✅ Gemini connect box */
 .success-box {
-    background-color: #ffffff !important;
+    background: #ffffff;
     border-left: 6px solid #43a047;
     color: #1b5e20;
     font-weight: 600;
     border-radius: 6px;
     padding: 10px;
-    box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+    box-shadow: 0 2px 6px rgba(0,0,0,0.05);
 }
+
+/* 💬 Chat bubble style */
 [data-testid="stChatMessage"] {
     background: #f0f9ff;
     border-radius: 10px;
@@ -51,13 +74,23 @@ h1, h2, h3 { color: #0a192f !important; font-weight: 700 !important; }
     color: #0a192f !important;
     font-weight: 500;
 }
-.plot-container {
+
+/* 🎹 Buttons */
+.stButton>button {
+    background-color: #1565c0 !important;
+    color: white !important;
+    border-radius: 8px;
+    font-weight: 600;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+.stButton>button:hover {
+    background-color: #0d47a1 !important;
+}
+
+/* 📊 Plot clean background */
+.js-plotly-plot .plotly {
     background: #fdfdfd !important;
     border-radius: 10px !important;
-}
-@media (max-width:768px) {
-    .stApp { font-size: 15px !important; }
-    .stButton>button { width: 100% !important; }
 }
 </style>
 """, unsafe_allow_html=True)
@@ -69,7 +102,7 @@ st.markdown("""
 </h1>
 <p style='text-align:center;font-size:17px;color:#08336e;font-weight:700;
 text-shadow:0 0 6px rgba(255,255,255,0.9);
-background:rgba(187,222,251,0.6);border-radius:8px;padding:6px 10px;
+background:rgba(187,222,251,0.5);border-radius:8px;padding:6px 10px;
 display:inline-block;'>
 💻 Zahid Hasan | Gemini 2.5 Flash ⚡ | Smart Dashboard 📊 | Weather ☁️ | River Board 🌊
 </p>
@@ -128,7 +161,10 @@ try:
         desc = res["weather"][0]["description"].title()
         tempn = res["main"]["temp"]; hum = res["main"]["humidity"]
         rain_mm = res.get("rain",{}).get("1h",0); wind = res["wind"]["speed"]
-        st.success(f"🌤️ {desc} | 🌡️ {tempn}°C | 💧 {hum}% | 🌧️ {rain_mm}mm/h | 💨 {wind}m/s")
+        st.markdown(
+            f"<div class='weather-box'>🌤️ {desc} | 🌡️ {tempn}°C | 💧 {hum}% | 🌧️ {rain_mm}mm/h | 💨 {wind}m/s</div>",
+            unsafe_allow_html=True
+        )
 except:
     st.info("⚙️ Weather API updating...")
 
