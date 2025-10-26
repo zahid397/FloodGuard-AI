@@ -7,6 +7,10 @@ import requests
 import google.generativeai as genai
 from gtts import gTTS
 from io import BytesIO
+from streamlit_autorefresh import st_autorefresh
+
+# ---------- AUTO REFRESH ----------
+st_autorefresh(interval=3600000, key="auto_refresh")  # every 1 hour
 
 # ---------- PAGE CONFIG ----------
 st.set_page_config(page_title="FloodGuard AI", page_icon="🌊", layout="wide")
@@ -24,9 +28,6 @@ h1,h2,h3{color:#0a192f!important;font-weight:700!important;}
 [data-testid="stChatMessage"]{background:#f0f9ff;border-radius:10px;padding:10px;margin-bottom:5px;}
 .success-box{background:white;border-left:6px solid #4caf50;color:#1b5e20;font-weight:600;
     border-radius:6px;padding:10px;}
-.api-box{background:linear-gradient(135deg,#dbeafe 0%,#e8f3ff 100%);
-    border-left:6px solid #0d47a1;color:#0a192f;border-radius:8px;
-    padding:12px;font-weight:600;box-shadow:0 3px 6px rgba(0,0,0,0.05);}
 @media(max-width:768px){.stApp{font-size:15px!important;}.stButton>button{width:100%!important;}}
 </style>
 """, unsafe_allow_html=True)
@@ -68,27 +69,21 @@ def init_gemini():
 gemini = init_gemini()
 
 # ---------- WEATHER ----------
-st.subheader("☁️ Daily Weather & Rainfall Report (OpenWeather)")
+st.subheader("☁️ Daily Weather & Rainfall Report (Live)")
 try:
-    key = st.secrets.get("OPENWEATHER_KEY")
-    loc = st.session_state.get("loc","Dhaka")
-    if key:
-        res = requests.get(
-            f"https://api.openweathermap.org/data/2.5/weather?q={loc}&appid={key}&units=metric"
-        ).json()
-        desc = res["weather"][0]["description"].title()
-        tempn = res["main"]["temp"]; hum = res["main"]["humidity"]
-        rain_mm = res.get("rain",{}).get("1h",0); wind = res["wind"]["speed"]
-        st.success(f"🌤️ {desc} | 🌡️ {tempn}°C | 💧 {hum}% | 🌧️ {rain_mm} mm/h | 💨 {wind} m/s")
-    else:
-        st.markdown("""
-        <div class='api-box'>
-        ⚙️ <b>OpenWeather API not set</b> — showing simulated data.<br>
-        🌥️ Cloudy | 🌡️ 29°C | 💧 83% | 🌧️ 2 mm/h | 💨 5 m/s
-        </div>
-        """,unsafe_allow_html=True)
+    key = st.secrets["OPENWEATHER_KEY"]
+    loc = st.session_state.get("loc", "Dhaka")
+    res = requests.get(
+        f"https://api.openweathermap.org/data/2.5/weather?q={loc}&appid={key}&units=metric"
+    ).json()
+    desc = res["weather"][0]["description"].title()
+    tempn = res["main"]["temp"]
+    hum = res["main"]["humidity"]
+    rain_mm = res.get("rain", {}).get("1h", 0)
+    wind = res["wind"]["speed"]
+    st.success(f"🌤️ {desc} | 🌡️ {tempn}°C | 💧 {hum}% | 🌧️ {rain_mm} mm/h | 💨 {wind} m/s")
 except Exception as e:
-    st.warning(f"Weather fetch failed: {e}")
+    st.error(f"Weather fetch failed: {e}")
 
 # ---------- RIVER BOARD ----------
 st.subheader("🌊 River Status Board (Live Simulation)")
