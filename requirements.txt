@@ -3,7 +3,8 @@ streamlit-folium==0.17.0
 folium==0.15.1
 google-generativeai==0.5.2
 gtts==2.5.3
-pandas==2.2.2
+pandas==2.2.3
 numpy==1.26.4
-plotly==5.23.0
+plotly==5.24.1
+streamlit-autorefresh==1.0.1
 requests==2.32.3
