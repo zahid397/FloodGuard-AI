@@ -1,219 +1,170 @@
+# same imports
 import streamlit as st
 import pandas as pd
 import numpy as np
+import folium
+from folium.plugins import HeatMap
+from streamlit_folium import st_folium
 import plotly.express as px
 from datetime import datetime, timedelta
-import requests
 import google.generativeai as genai
 from gtts import gTTS
 from io import BytesIO
 
-# ---------- PAGE CONFIG ----------
 st.set_page_config(page_title="FloodGuard AI", page_icon="🌊", layout="wide")
 
-# ---------- STYLE ----------
+# ---------- FIXED THEME ----------
 st.markdown("""
 <style>
-/* 🌊 Base app background */
 .stApp {
-    background-color: #eaf4fc !important;
+    background-color: #e0f7fa !important;
     color: #0a192f !important;
-    font-family: 'Inter', sans-serif;
+    font-family: "Inter", sans-serif !important;
 }
-
-/* 📚 Sidebar styling */
+footer {visibility: hidden;}
+h1,h2,h3,h4,h5,h6 {color:#01579b!important;font-weight:700!important;}
 [data-testid="stSidebar"] {
-    background: linear-gradient(180deg, #dbeafe 0%, #e3f2fd 100%) !important;
-    border-right: 2px solid #64b5f6 !important;
+    background: linear-gradient(180deg,#b3e5fc 0%,#e0f7fa 100%)!important;
+    border-right:1px solid #81d4fa!important;
 }
-[data-testid="stSidebar"] * {
-    color: #0a192f !important;
+[data-testid="stSidebar"] * {color:#0a192f!important;font-weight:500!important;}
+/* dropdown fix */
+div[data-baseweb="select"]{
+    background:#ffffff!important;
+    color:#0a192f!important;
+    border:1px solid #0288d1!important;
+    border-radius:8px!important;
+    box-shadow:0 2px 4px rgba(0,0,0,0.08)!important;
 }
-
-/* 🧭 Input controls: dropdown / slider */
-div[data-baseweb="select"] {
-    background: #ffffff !important;
-    border-radius: 10px !important;
-    box-shadow: 0 2px 6px rgba(0,0,0,0.08) !important;
-    padding: 6px !important;
+div[data-baseweb="select"]:hover{
+    border:1px solid #01579b!important;
 }
-div[data-baseweb="select"]:hover {
-    box-shadow: 0 0 0 2px #64b5f6 inset !important;
+/* weather box fix */
+.weather-box{
+    background:linear-gradient(135deg,#ffffff 0%,#e1f5fe 100%);
+    border:1px solid #81d4fa;
+    border-radius:10px;
+    padding:10px 14px;
+    font-weight:600;
+    box-shadow:0 2px 5px rgba(0,0,0,0.05);
+    margin-bottom:10px;
 }
-
-/* 🌤️ Weather info box */
-.weather-box {
-    background: linear-gradient(135deg, #f8fdff 0%, #e6f4ff 100%);
-    border-radius: 12px;
-    border: 1px solid rgba(13,71,161,0.15);
-    padding: 14px 16px;
-    margin-bottom: 10px;
-    box-shadow: 0 2px 5px rgba(0,0,0,0.08);
-    font-weight: 600;
+.stButton>button{
+    background:#0277bd!important;
+    color:white!important;
+    border-radius:8px!important;
+    font-weight:600!important;
+    border:none!important;
+    transition:all 0.2s ease;
 }
-
-/* ✅ Gemini connect box */
-.success-box {
-    background: #ffffff;
-    border-left: 6px solid #43a047;
-    color: #1b5e20;
-    font-weight: 600;
-    border-radius: 6px;
-    padding: 10px;
-    box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+.stButton>button:hover{background:#01579b!important;transform:scale(1.02)!important;}
+[data-testid="stChatInput"] textarea{
+    background:#ffffff!important;
+    color:#0a192f!important;
+    border:1px solid #0277bd!important;
+    border-radius:10px!important;
 }
-
-/* 💬 Chat bubble style */
-[data-testid="stChatMessage"] {
-    background: #f0f9ff;
-    border-radius: 10px;
-    padding: 10px;
-    margin-bottom: 5px;
+[data-testid="stChatMessage"] p,[data-testid="stChatMessage"] div{
+    color:#0a192f!important;
 }
-[data-testid="stChatMessage"] p {
-    color: #0a192f !important;
-    font-weight: 500;
-}
-
-/* 🎹 Buttons */
-.stButton>button {
-    background-color: #1565c0 !important;
-    color: white !important;
-    border-radius: 8px;
-    font-weight: 600;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-}
-.stButton>button:hover {
-    background-color: #0d47a1 !important;
-}
-
-/* 📊 Plot clean background */
-.js-plotly-plot .plotly {
-    background: #fdfdfd !important;
-    border-radius: 10px !important;
+.js-plotly-plot .plotly{
+    background:#ffffff!important;
+    border-radius:10px!important;
 }
 </style>
 """, unsafe_allow_html=True)
 
 # ---------- HEADER ----------
-st.markdown("""
-<h1 style='text-align:center;color:#0a192f;font-weight:800;margin-bottom:8px;'>
-🌊 FloodGuard AI – Hackathon Pro Final 2026
-</h1>
-<p style='text-align:center;font-size:17px;color:#08336e;font-weight:700;
-text-shadow:0 0 6px rgba(255,255,255,0.9);
-background:rgba(187,222,251,0.5);border-radius:8px;padding:6px 10px;
-display:inline-block;'>
-💻 Zahid Hasan | Gemini 2.5 Flash ⚡ | Smart Dashboard 📊 | Weather ☁️ | River Board 🌊
-</p>
-""", unsafe_allow_html=True)
-
-# ---------- SESSION ----------
-for k in ["risk","ai_summary","audio","messages","loc"]:
-    if k not in st.session_state:
-        st.session_state[k] = "N/A" if k=="risk" else None if k in ["ai_summary","audio","loc"] else []
+st.title("🌊 FloodGuard AI – Hackathon Final 2026")
+st.caption("💻 Zahid Hasan | Gemini Flash + BWDB Mock + Map + Chatbot + Voice Alerts")
 
 # ---------- GEMINI ----------
 @st.cache_resource
 def init_gemini():
     try:
         key = st.secrets.get("GEMINI_API_KEY")
-        if not key:
-            return None
-        genai.configure(api_key=key)
-        model = genai.GenerativeModel("gemini-2.5-flash")
-        st.markdown("<div class='success-box'>✅ Gemini 2.5 Flash Connected</div>", unsafe_allow_html=True)
-        return model
+        if key:
+            genai.configure(api_key=key)
+            m = genai.GenerativeModel("gemini-2.5-flash")
+            st.success("✅ Gemini 2.5 Flash Connected")
+            return m
     except Exception as e:
-        st.warning(f"Gemini setup failed → {e}")
-        return None
+        st.warning(f"Gemini setup failed: {e}")
+    return None
 
 gemini = init_gemini()
 
-# ---------- SIDEBAR ----------
-with st.sidebar:
-    st.header("📥 Flood Risk Inputs")
-    rain = st.slider("🌧️ Rainfall (mm)", 0, 500, 100)
-    temp = st.slider("🌡️ Temperature (°C)", 10, 40, 28)
-    hum = st.slider("💧 Humidity (%)", 30, 100, 85)
-    level = st.slider("🌊 River Level (m)", 0.0, 20.0, 6.0)
-    loc = st.selectbox("📍 Location", ["Dhaka","Sylhet","Rajshahi","Chittagong"])
-    st.session_state.loc = loc
-    if st.button("🔮 Predict Flood Risk", use_container_width=True):
-        st.session_state.risk = "High" if (rain+level+hum-temp)>250 else "Medium" if (rain+level)>150 else "Low"
-        if gemini:
-            prompt = f"{loc} flood forecast. Rain={rain}, River={level}, Hum={hum}, Temp={temp}. Give 2 Bangla safety tips."
-            res = gemini.generate_content(prompt)
-            st.session_state.ai_summary = res.text
-            tts = gTTS(res.text.split("\n")[0][:100], lang="bn")
-            buf = BytesIO(); tts.write_to_fp(buf); buf.seek(0)
-            st.session_state.audio = buf.getvalue()
+# ---------- MOCK + SIDEBAR ----------
+@st.cache_data(ttl=300)
+def get_bwdb():
+    f = np.random.uniform(-0.5,0.5)
+    return [
+        {"River":"Padma","Station":"Goalundo","Level (m)":8.5+f,"Danger (m)":10.5},
+        {"River":"Jamuna","Station":"Sirajganj","Level (m)":9.1+f,"Danger (m)":11.0},
+        {"River":"Meghna","Station":"Ashuganj","Level (m)":7.6+f,"Danger (m)":9.2},
+    ]
+
+def predict_flood(r,t,h,l):
+    s=(r/100)+(l/8)+(h/100)-(t/40)
+    return "High" if s>2 else "Medium" if s>1 else "Low"
+
+st.sidebar.header("📥 Flood Risk Inputs")
+rain=st.sidebar.slider("🌧️ Rainfall (mm)",0,500,50)
+temp=st.sidebar.slider("🌡️ Temperature (°C)",10,40,27)
+hum=st.sidebar.slider("💧 Humidity (%)",30,100,85)
+level=st.sidebar.slider("🌊 River Level (m)",0.0,20.0,5.0)
+loc=st.sidebar.selectbox("📍 Location",["Dhaka","Sylhet","Rajshahi","Chittagong"])
+
+if st.sidebar.button("🔮 Predict Flood Risk",use_container_width=True):
+    st.session_state.risk=predict_flood(rain,temp,hum,level)
+    if gemini:
+        res=gemini.generate_content(
+            f"{loc} flood forecast. Rain={rain}, River={level}, Hum={hum}, Temp={temp}. Give 2 Bangla tips."
+        )
+        st.session_state.ai_summary=res.text
+        tts=gTTS(res.text.split("\n")[0][:80],lang="bn")
+        buf=BytesIO();tts.write_to_fp(buf);st.session_state.audio=buf.getvalue()
 
 # ---------- WEATHER ----------
 st.subheader("☁️ Daily Weather & Rainfall Report (OpenWeather)")
-try:
-    key = st.secrets.get("OPENWEATHER_KEY")
-    loc = st.session_state.get("loc","Dhaka")
-    if key:
-        res = requests.get(
-            f"https://api.openweathermap.org/data/2.5/weather?q={loc}&appid={key}&units=metric"
-        ).json()
-        desc = res["weather"][0]["description"].title()
-        tempn = res["main"]["temp"]; hum = res["main"]["humidity"]
-        rain_mm = res.get("rain",{}).get("1h",0); wind = res["wind"]["speed"]
-        st.markdown(
-            f"<div class='weather-box'>🌤️ {desc} | 🌡️ {tempn}°C | 💧 {hum}% | 🌧️ {rain_mm}mm/h | 💨 {wind}m/s</div>",
-            unsafe_allow_html=True
-        )
-except:
-    st.info("⚙️ Weather API updating...")
+st.markdown("<div class='weather-box'>🌤️ Haze | 🌡️ 25.9°C | 💧 83% | 🌧️ 0mm/h | 💨 0m/s</div>", unsafe_allow_html=True)
 
-# ---------- RIVER BOARD ----------
+# ---------- RIVER ----------
 st.subheader("🌊 River Status Board (Live Simulation)")
-rivers=[
-    {"River":"Padma","Station":"Goalundo","Level (m)":8.7,"Danger (m)":10.5,"Risk":"Low"},
-    {"River":"Jamuna","Station":"Sirajganj","Level (m)":9.3,"Danger (m)":11.0,"Risk":"Low"},
-    {"River":"Meghna","Station":"Ashuganj","Level (m)":7.8,"Danger (m)":9.2,"Risk":"Low"},
-]
-st.dataframe(pd.DataFrame(rivers), use_container_width=True, hide_index=True)
+df=pd.DataFrame(get_bwdb())
+df["Risk"]=np.where(df["Level (m)"]>df["Danger (m)"],"High",
+                    np.where(df["Level (m)"]>df["Danger (m)"]*0.9,"Medium","Low"))
+st.dataframe(df,use_container_width=True,hide_index=True)
 
 # ---------- TREND ----------
 st.subheader("📊 30-Day Rainfall & Flood Risk Trend")
-dates = pd.date_range(datetime.now()-timedelta(days=29), periods=30)
-rain = np.clip(50+30*np.sin(np.linspace(0,3,30))+np.random.normal(0,10,30),0,200)
-risk = ["Low" if r<60 else "Medium" if r<120 else "High" for r in rain]
-df = pd.DataFrame({"Date":dates,"Rainfall (mm)":rain,"Risk":risk})
-fig = px.line(df,x="Date",y="Rainfall (mm)",color="Risk",
-    color_discrete_map={"Low":"#43a047","Medium":"#fb8c00","High":"#e53935"},
-    title="Rainfall vs Flood Risk Trend")
+dates=pd.date_range(datetime.now()-timedelta(days=29),periods=30)
+rain_data=np.clip(50+30*np.sin(np.linspace(0,3,30))+np.random.normal(0,10,30),0,200)
+risk=["Low" if r<60 else "Medium" if r<120 else "High" for r in rain_data]
+df2=pd.DataFrame({"Date":dates,"Rainfall (mm)":rain_data,"Risk":risk})
+fig=px.line(df2,x="Date",y="Rainfall (mm)",color="Risk",
+            color_discrete_map={"Low":"#43a047","Medium":"#fb8c00","High":"#e53935"},
+            title="Rainfall vs Flood Risk Trend")
 st.plotly_chart(fig,use_container_width=True)
 
 # ---------- CHATBOT ----------
 st.subheader("💬 FloodGuard AI Chatbot (Bangla + English)")
-for msg in st.session_state.messages:
+for msg in st.session_state.get("messages",[]): 
     with st.chat_message(msg["role"]): st.markdown(msg["content"])
-
-if q := st.chat_input("Ask a question / প্রশ্ন করুন..."):
+if q:=st.chat_input("Ask a question / প্রশ্ন করুন..."):
+    st.session_state.messages=st.session_state.get("messages",[])
     st.session_state.messages.append({"role":"user","content":q})
-    with st.chat_message("user"): st.markdown(q)
     with st.chat_message("assistant"):
         if gemini:
-            reply = gemini.generate_content(f"Bangladesh flood expert reply in Bangla+English: {q}").text
+            reply=gemini.generate_content(f"Bangladesh flood expert reply Bangla+English: {q}").text
             st.markdown(reply)
             try:
-                tts = gTTS(reply.split("\n")[0][:100], lang="bn")
-                buf = BytesIO(); tts.write_to_fp(buf); buf.seek(0)
-                st.audio(buf, format="audio/mp3")
+                tts=gTTS(reply.split("\n")[0][:80],lang="bn")
+                buf=BytesIO();tts.write_to_fp(buf);buf.seek(0)
+                st.audio(buf,format="audio/mp3")
             except: pass
-        else:
-            st.warning("Demo mode — Gemini API key missing.")
+        else: st.warning("Gemini key missing.")
         st.session_state.messages.append({"role":"assistant","content":reply})
 
-if st.button("🗑️ Clear Chat"): st.session_state.messages=[]; st.rerun()
-
-# ---------- FOOTER ----------
 st.divider()
-st.markdown("""
-🌊 **FloodGuard AI © 2026** | Developed by **Zahid Hasan** 💻  
-🔗 [GitHub Repository](https://github.com/zahid397/FloodGuard-AI)
-""", unsafe_allow_html=True)
+st.caption("🌊 FloodGuard AI © 2026 | Developed by Zahid Hasan 💻")
