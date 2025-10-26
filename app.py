@@ -25,17 +25,21 @@ st.markdown("""
 <style>
 .stApp{background:#fff!important;color:#0a192f!important;font-family:"Segoe UI",sans-serif!important;}
 /* Sidebar */
-[data-testid="stSidebar"]{background:linear-gradient(180deg,#0078d7,#0099ff)!important;border-right:3px solid #005a9e!important;}
+[data-testid="stSidebar"]{
+  background:linear-gradient(180deg,#0078d7,#0099ff)!important;border-right:3px solid #005a9e!important;
+}
 [data-testid="stSidebar"] *{color:#fff!important;font-weight:600!important;}
-/* Clean, MS-Word-like select look (affects all select/combobox) */
+/* Clean, MS-Word-like select look */
 div[role="combobox"]{
   background:#ffffff!important;border:2px solid #005a9e!important;border-radius:12px!important;
   box-shadow:0 3px 6px rgba(0,0,0,0.15)!important;padding:6px 10px!important;
 }
 div[role="combobox"]:hover{border-color:#004b8d!important;box-shadow:0 4px 10px rgba(0,0,0,0.25)!important;}
 /* Buttons */
-.stButton>button{background:#0078d7!important;color:#fff!important;border:none!important;border-radius:10px!important;
-  font-weight:700!important;padding:8px 14px!important}
+.stButton>button{
+  background:#0078d7!important;color:#fff!important;border:none!important;border-radius:10px!important;
+  font-weight:700!important;padding:8px 14px!important
+}
 .stButton>button:hover{background:#005a9e!important;transform:scale(1.03)}
 /* Small info boxes */
 .weather-box{background:#f8fbff!important;border:2px solid #0078d7!important;border-radius:10px!important;padding:10px!important;font-weight:600!important;}
@@ -54,29 +58,28 @@ defaults = {
     "audio": None,
     "weather_data": {"temp": 25.9, "hum": 83, "rain": 0},
     "prediction_inputs": None,
-    "gemini_model_id": None
+    "gemini_model_id": None,
+    "chat_messages": []  # for chatbot
 }
 for k, v in defaults.items():
     if k not in st.session_state:
         st.session_state[k] = v
 
-# ---------------- LOAD MODEL ----------------
+# ---------------- LOAD MODEL (silent fallback, no warning) ----------------
 @st.cache_resource
 def load_model():
     try:
-        model = joblib.load("model/flood_model.pkl")
+        m = joblib.load("model/flood_model.pkl")  # keep this path exact in your repo
         st.success("✅ ML Model Loaded (XGBoost)")
-        return model
+        return m
     except Exception:
-        st.warning("⚠️ Model not found — using rule-based fallback.")
-        return None
+        return None  # silent fallback (no UI warning)
 
 model = load_model()
 
 # ---------------- GEMINI (robust: auto-pick available model) ----------------
 @st.cache_resource
 def init_gemini():
-    # Get key from secrets or env safely
     key = None
     try:
         key = st.secrets.get("GEMINI_API_KEY")
@@ -84,43 +87,33 @@ def init_gemini():
         pass
     if not key:
         key = os.getenv("GEMINI_API_KEY")
-
     if not key:
         st.warning("⚠️ Gemini API Key not found. Add in Secrets or environment.")
         return None, None
-
     try:
         genai.configure(api_key=key)
-        # Preferred order: 2.5 Flash → 2.0 Flash → 1.5 Flash (001) → Pro
         preferred = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash-001", "gemini-pro"]
-
-        # Use list_models to find something that supports generateContent
         try:
             models = list(genai.list_models())
         except Exception:
             models = []
-
-        selected_id = None
+        select_id = None
         if models:
-            # Keep only models that support generateContent
             def supports(m):
                 methods = getattr(m, "supported_generation_methods", []) or []
                 return any("generate" in str(x).lower() for x in methods)
-
-            available_ids = {m.name.split("/")[-1] for m in models if supports(m)}
+            available = {m.name.split("/")[-1] for m in models if supports(m)}
             for pid in preferred:
-                if pid in available_ids:
-                    selected_id = pid
+                if pid in available:
+                    select_id = pid
                     break
-            if not selected_id and available_ids:
-                selected_id = sorted(list(available_ids))[0]  # pick any valid
-        # Fallback if list_models failed
-        if not selected_id:
-            selected_id = preferred[0]  # try 2.5 flash directly
-
-        gmodel = genai.GenerativeModel(selected_id)
-        st.success(f"✅ Gemini Connected ({selected_id})")
-        return gmodel, selected_id
+            if not select_id and available:
+                select_id = sorted(list(available))[0]
+        if not select_id:
+            select_id = preferred[0]
+        gmodel = genai.GenerativeModel(select_id)
+        st.success(f"✅ Gemini Connected ({select_id})")
+        return gmodel, select_id
     except Exception as e:
         st.error(f"Gemini init failed: {e}")
         return None, None
@@ -184,10 +177,7 @@ def create_pdf_report(risk, weather, summary, inputs):
 # ---------------- SIDEBAR ----------------
 st.sidebar.header("📥 Flood Risk Inputs")
 ow_key = st.sidebar.text_input("OpenWeather API Key (Optional)", type="password")
-
-# Clean select (shows nicely-styled 'Dhaka' etc.)
 loc = st.sidebar.selectbox("📍 Location", ["Dhaka", "Sylhet", "Rajshahi", "Chittagong"])
-
 st.sidebar.divider()
 st.sidebar.markdown("#### Manual Data Overrides")
 rain = st.sidebar.slider("🌧️ Rainfall (mm)", 0, 500, 50)
@@ -203,13 +193,14 @@ if st.sidebar.button("🔮 Predict Flood Risk", use_container_width=True):
         "rain": rain_w, "hum": hum_w, "temp": temp_w, "level": level, "pressure": pressure, "loc": loc
     }
     st.session_state.risk = predict_flood([rain_w, hum_w, temp_w, level, pressure])
-    # Clear previous AI output; now generate only from Tab 4 on button
+    # clear previous AI outputs
     st.session_state.ai_summary = None
     st.session_state.audio = None
+    # don't rerun here—stay on same screen so tabs are responsive
 
 # ---------------- TABS ----------------
-tab1, tab2, tab3, tab4 = st.tabs([
-    "① Analysis", "② Weather & Rivers", "③ Map", "④ AI Safety Tips (Gemini 2.5 Flash)"
+tab1, tab2, tab3, tab4, tab5 = st.tabs([
+    "① Analysis", "② Weather & Rivers", "③ Map", "④ AI Safety Tips (Gemini 2.5 Flash)", "⑤ Chat Assistant"
 ])
 
 with tab1:
@@ -250,7 +241,7 @@ with tab2:
         f" | 🌡️ {w['temp']:.1f}°C | 💧 {w['hum']:.0f}% | 🌧️ {w['rain']:.1f}mm/h</div>",
         unsafe_allow_html=True
     )
-    # River table (dummy demo)
+    # River table (demo)
     rivers = [
         {"River": "Padma", "Station": "Goalundo", "Level": round(8.7 + np.random.uniform(-0.2, 0.2), 1), "Danger": 10.5},
         {"River": "Jamuna", "Station": "Sirajganj", "Level": round(9.3 + np.random.uniform(-0.2, 0.2), 1), "Danger": 11.0},
@@ -273,12 +264,8 @@ with tab3:
 
 with tab4:
     st.subheader("🤖 AI Safety Tips — Gemini 2.5 Flash")
-    colA, colB = st.columns([1, 1])
-    with colA:
-        st.markdown("**Selected model:** " + (st.session_state.gemini_model_id or "Not connected"))
-        gen_btn = st.button("⚡ Generate Tips with Gemini 2.5 Flash", use_container_width=True)
-    with colB:
-        pass
+    st.markdown("**Selected model:** " + (st.session_state.gemini_model_id or "Not connected"))
+    gen_btn = st.button("⚡ Generate Tips", use_container_width=True)
 
     if gen_btn:
         if not gemini:
@@ -300,7 +287,7 @@ with tab4:
                     txt = (res.text or "").strip()
                     st.session_state.ai_summary = txt if txt else "No text returned."
 
-                    # Short Bangla voice (first two Bangla lines)
+                    # Bangla voice (first two Bangla lines)
                     bangla_lines = [line for line in txt.split("\n") if any('\u0980' <= ch <= '\u09FF' for ch in line)]
                     if bangla_lines:
                         speak_text = "\n".join(bangla_lines[:2])[:160]
@@ -317,6 +304,51 @@ with tab4:
         st.info(st.session_state.ai_summary)
     if st.session_state.audio:
         st.audio(st.session_state.audio, format="audio/mp3")
+
+with tab5:
+    st.subheader("💬 Chat Assistant (Bangla + English)")
+    # show history
+    for m in st.session_state.chat_messages:
+        with st.chat_message(m["role"]):
+            st.markdown(m["content"])
+
+    q = st.chat_input("আপনার প্রশ্ন লিখুন / Ask anything...")
+    if q:
+        st.session_state.chat_messages.append({"role": "user", "content": q})
+        with st.chat_message("user"):
+            st.markdown(q)
+
+        # build compact conversation context + risk
+        context_lines = []
+        if st.session_state.risk != "N/A" and st.session_state.prediction_inputs:
+            p = st.session_state.prediction_inputs
+            context_lines.append(
+                f"Context: Current flood risk for {p['loc']} is {st.session_state.risk} "
+                f"(rain {p['rain']}mm, level {p['level']}m)."
+            )
+        last_turns = st.session_state.chat_messages[-6:]  # last few turns
+        convo_text = "\n".join([("User: " + m["content"]) if m["role"]=="user" else ("Assistant: " + m["content"])
+                                for m in last_turns if m["role"] in ("user", "assistant")])
+
+        prompt = (
+            "\n".join(context_lines)
+            + "\nYou are FloodGuard Chat Assistant for Bangladesh users. "
+              "Answer briefly in Bangla first (1–2 lines), then in English (1–2 lines). "
+              "Be practical and safety-focused.\n\n"
+              + convo_text + "\nAssistant:"
+        )
+
+        with st.chat_message("assistant"):
+            if not gemini:
+                reply = "⚠️ Gemini is not configured. Please set GEMINI_API_KEY."
+            else:
+                try:
+                    res = gemini.generate_content(prompt)
+                    reply = (res.text or "").strip() or "Sorry, I couldn't generate a response."
+                except Exception as e:
+                    reply = f"AI Error: {e}"
+            st.markdown(reply)
+            st.session_state.chat_messages.append({"role": "assistant", "content": reply})
 
 # ---------------- FOOTER ----------------
 st.divider()
