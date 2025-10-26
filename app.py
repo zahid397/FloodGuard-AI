@@ -20,7 +20,7 @@ st.markdown("""
 }
 * { opacity: 1 !important; }
 
-/* Sidebar */
+/* Sidebar clean blue */
 [data-testid="stSidebar"] {
     background: linear-gradient(180deg,#0078d7,#0099ff) !important;
     border-right: 3px solid #005a9e !important;
@@ -30,7 +30,7 @@ st.markdown("""
     font-weight: 600 !important;
 }
 
-/* Dropdown visible */
+/* Location select clean white */
 div[data-baseweb="select"], div[data-baseweb="select"] > div {
     background: #ffffff !important;
     color: #1a1a1a !important;
@@ -62,17 +62,12 @@ div[data-baseweb="select"], div[data-baseweb="select"] > div {
     color: #1a1a1a !important;
 }
 
-/* Chat area */
+/* Chat input */
 [data-testid="stChatInput"] textarea {
     background: #ffffff !important;
     border: 2px solid #0078d7 !important;
     color: #1a1a1a !important;
     border-radius: 8px !important;
-}
-[data-testid="stChatMessage"] {
-    background: #f4faff !important;
-    border-radius: 8px !important;
-    padding: 10px !important;
 }
 
 /* Headers */
@@ -122,7 +117,10 @@ def predict(r, t, h, l):
     return "High" if s > 2 else "Medium" if s > 1 else "Low"
 
 if st.sidebar.button("🔮 Predict Flood Risk", use_container_width=True):
-    st.session_state.risk = predict(rain, temp, hum, level)
+    risk_level = predict(rain, temp, hum, level)
+    st.session_state.risk = risk_level
+    st.success(f"Predicted Flood Risk for {loc}: **{risk_level}**")
+
     if gemini:
         try:
             res = gemini.generate_content(
@@ -130,13 +128,14 @@ if st.sidebar.button("🔮 Predict Flood Risk", use_container_width=True):
             )
             txt = res.text
             st.session_state.ai_summary = txt
-            tts = gTTS(txt.split("\\n")[0][:100], lang="bn")
+            st.markdown(f"### 🌧️ AI Tips:\n{txt}")
+            tts = gTTS(txt.split('\n')[0][:100], lang="bn")
             buf = BytesIO()
             tts.write_to_fp(buf)
             buf.seek(0)
-            st.session_state.audio = buf.getvalue()
+            st.audio(buf, format="audio/mp3")
         except Exception as e:
-            st.session_state.ai_summary = f"AI unavailable: {e}"
+            st.error(f"AI unavailable: {e}")
 
 # ---- MAIN DASHBOARD ----
 st.subheader("☁️ Daily Weather & Rainfall Report (OpenWeather)")
@@ -174,7 +173,7 @@ if q := st.chat_input("Ask a question / প্রশ্ন করুন..."):
         if gemini:
             reply = gemini.generate_content(f"FloodGuard AI reply in Bangla+English: {q}").text
             st.markdown(reply)
-            tts = gTTS(reply.split("\\n")[0][:100], lang="bn")
+            tts = gTTS(reply.split('\n')[0][:100], lang="bn")
             buf = BytesIO()
             tts.write_to_fp(buf)
             buf.seek(0)
@@ -188,6 +187,5 @@ if st.button("🗑️ Clear Chat"):
     st.session_state.messages = []
     st.rerun()
 
-# ---- FOOTER ----
 st.divider()
 st.markdown("<p style='text-align:center;font-weight:600;'>🌊 FloodGuard AI © 2026 | Developed by Zahid Hasan 💻</p>", unsafe_allow_html=True)
