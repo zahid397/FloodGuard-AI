@@ -17,16 +17,40 @@ from reportlab.pdfbase.cidfonts import UnicodeCIDFont
 # ---------------- PAGE CONFIG ----------------
 st.set_page_config(page_title="FloodGuard AI", page_icon="🌊", layout="wide")
 
-# ---------------- STYLES ----------------
+# ---------------- CUSTOM CSS for Messenger-style chat ----------------
 st.markdown("""
 <style>
-.stApp{background:#fff!important;color:#0a192f!important;font-family:"Segoe UI",sans-serif!important;}
-[data-testid="stSidebar"]{background:linear-gradient(180deg,#0078d7,#0099ff)!important;border-right:3px solid #005a9e!important;}
-[data-testid="stSidebar"] *{color:#fff!important;font-weight:600!important;}
-div[role="combobox"]{background:#ffffff!important;border:2px solid #005a9e!important;border-radius:10px!important;padding:5px 10px!important;}
-.stButton>button{background:#0078d7!important;color:#fff!important;border:none!important;border-radius:8px!important;font-weight:700!important;}
-.stButton>button:hover{background:#005a9e!important;transform:scale(1.03);}
-.weather-box{background:#f8fbff!important;border:2px solid #0078d7!important;border-radius:10px!important;padding:10px!important;font-weight:600!important;}
+/* Chat message containers */
+div[data-testid="stChatMessage"] {
+    border-radius: 12px;
+    padding: 8px 12px;
+    margin: 5px 0;
+    max-width: 75%;
+}
+/* User (you) messages: align right, blue background */
+div[data-testid="stChatMessage"][data-role="user"] {
+    background-color: #0078d7;
+    color: white;
+    margin-left: auto;
+    margin-right: 5px;
+}
+/* Assistant messages: align left, light grey background */
+div[data-testid="stChatMessage"][data-role="assistant"] {
+    background-color: #f1f1f1;
+    color: #0a192f;
+    margin-left: 5px;
+    margin-right: auto;
+}
+/* Input box styling */
+[data-testid="stChatInput"] textarea {
+    border-radius: 20px !important;
+    border: 2px solid #005a9e !important;
+}
+[data-testid="stChatInput"] button {
+    border-radius: 20px !important;
+    background-color: #0078d7 !important;
+    color: white !important;
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -35,25 +59,25 @@ st.markdown("<h1 style='text-align:center;'>🌊 FloodGuard AI – InnovateX Hac
 st.caption("💻 XGBoost ML | Gemini 2.5 Flash | Voice Tips | Team Project")
 
 # ---------------- SESSION STATE ----------------
-defaults = {
-    "risk": "N/A",
-    "ai_summary": None,
-    "audio": None,
-    "weather_data": {"temp": 25.9, "hum": 83, "rain": 0},
-    "prediction_inputs": None,
-    "chat_messages": []
-}
-for k, v in defaults.items():
-    if k not in st.session_state:
-        st.session_state[k] = v
+if 'risk' not in st.session_state:
+    st.session_state.risk = "N/A"
+if 'ai_summary' not in st.session_state:
+    st.session_state.ai_summary = None
+if 'audio' not in st.session_state:
+    st.session_state.audio = None
+if 'weather_data' not in st.session_state:
+    st.session_state.weather_data = {"temp": 25.9, "hum": 83, "rain": 0}
+if 'prediction_inputs' not in st.session_state:
+    st.session_state.prediction_inputs = None
+if 'chat_messages' not in st.session_state:
+    st.session_state.chat_messages = []
 
 # ---------------- LOAD MODEL ----------------
 @st.cache_resource
 def load_model():
     try:
         return joblib.load("model/flood_model.pkl")
-    except Exception as e:
-        # silently fallback
+    except Exception:
         return None
 
 model = load_model()
@@ -99,7 +123,8 @@ def get_weather(city, api_key, slider_data):
 def predict_flood(features):
     if model:
         try:
-            df = pd.DataFrame([features], columns=["rainfall", "humidity", "temperature", "river_level", "pressure"])
+            df = pd.DataFrame([features],
+                              columns=["rainfall", "humidity", "temperature", "river_level", "pressure"])
             prob = model.predict_proba(df)[0][1] * 100
             risk = "High" if prob > 70 else "Medium" if prob > 30 else "Low"
             return f"{risk} ({prob:.1f}%)"
@@ -159,20 +184,22 @@ tab1, tab2, tab3, tab4, tab5 = st.tabs(["① Analysis", "② Weather", "③ AI T
 with tab1:
     st.subheader("🔮 Flood Risk Analysis")
     if st.session_state.risk != "N/A":
-        color_map = {"Low": "#43a047", "Medium": "#fb8c00", "High": "#e53935"}
+        color_map = {"Low":"#43a047", "Medium":"#fb8c00", "High":"#e53935"}
         risk_level = st.session_state.risk.split()[0]
         color = color_map.get(risk_level, "#0a192f")
         st.markdown(f"<h3>📍 {loc} — Predicted Risk: <span style='color:{color};'>{st.session_state.risk}</span></h3>", unsafe_allow_html=True)
         dates = pd.date_range(datetime.now() - timedelta(days=29), periods=30)
         rain_vals = np.clip(50 + 30*np.sin(np.linspace(0,3,30)) + np.random.normal(0,10,30), 0, 200)
         risk_vals = ["Low" if rv<60 else "Medium" if rv<120 else "High" for rv in rain_vals]
-        df_trend = pd.DataFrame({"Date": dates, "Rainfall (mm)": rain_vals, "Risk": risk_vals})
-        fig = px.line(df_trend, x="Date", y="Rainfall (mm)", color="Risk",
+        df = pd.DataFrame({"Date": dates, "Rainfall (mm)": rain_vals, "Risk": risk_vals})
+        fig = px.line(df, x="Date", y="Rainfall (mm)", color="Risk",
                       color_discrete_map=color_map, title="Rainfall vs Flood Risk Trend (Simulation)")
         fig.update_layout(height=300, margin=dict(l=0, r=0, t=40, b=0))
         st.plotly_chart(fig, use_container_width=True)
-        pdf_buf = create_pdf(st.session_state.risk, st.session_state.weather_data, st.session_state.ai_summary, st.session_state.prediction_inputs)
-        st.download_button("📄 Download Flood Report", data=pdf_buf, file_name="FloodGuard_Report.pdf", mime="application/pdf")
+        pdf_buf = create_pdf(st.session_state.risk, st.session_state.weather_data,
+                             st.session_state.ai_summary, st.session_state.prediction_inputs)
+        st.download_button("📄 Download Flood Report", data=pdf_buf,
+                           file_name="FloodGuard_Report.pdf", mime="application/pdf")
     else:
         st.info("⬅️ Set inputs and click Predict Flood Risk")
 
@@ -183,22 +210,21 @@ with tab2:
 
 with tab3:
     st.subheader("🤖 AI Safety Tips")
-    st.markdown("**Model:** " + ("Connected" if gemini else "Not connected"))
     if st.button("⚡ Generate Tips", use_container_width=True):
         if not gemini:
             st.error("Gemini not configured.")
         elif st.session_state.risk == "N/A":
             st.info("Please predict flood risk first.")
         else:
-            with st.spinner("Generating safety tips..."):
+            with st.spinner("Generating tips..."):
                 try:
                     p = st.session_state.prediction_inputs
-                    prompt = (f"Flood risk is {st.session_state.risk} for {p['loc']} "
-                              f"(Rain: {p['rain']}mm, Level: {p['level']}m). Provide 2 Bangla tips then 2 English tips.")
+                    prompt = (f"Flood risk is {st.session_state.risk} for {p['loc']}. "
+                              f"Provide 2 short Bangla tips then 2 English tips.")
                     res = gemini.generate_content(prompt)
                     txt = (res.text or "").strip()
                     st.session_state.ai_summary = txt
-                    # generate Bangla voice
+                    # bangla lines
                     bangla_lines = [l for l in txt.split("\n") if any('\u0980' <= ch <= '\u09FF' for ch in l)]
                     if bangla_lines:
                         tts = gTTS("\n".join(bangla_lines[:2])[:150], lang="bn")
@@ -226,8 +252,7 @@ with tab4:
                 reply = "⚠️ Gemini not configured."
             else:
                 try:
-                    prompt = (f"You are FloodGuard Assistant. Current risk={st.session_state.risk}. "
-                              f"Reply Bangla then English: {q}")
+                    prompt = (f"You are FloodGuard Assistant. Current risk={st.session_state.risk}. {q}")
                     res = gemini.generate_content(prompt)
                     reply = (res.text or "").strip()
                 except Exception as e:
@@ -237,7 +262,7 @@ with tab4:
 
 with tab5:
     st.markdown("### 🌊 About FloodGuard AI")
-    st.write("This is AI-powered flood prediction & advisory for Bangladesh. Developed for InnovateX Hackathon 2025.")
+    st.write("AI-powered flood prediction & advisory for Bangladesh. Developed for InnovateX Hackathon 2025.")
 
 st.divider()
 st.markdown("<p style='text-align:center;font-weight:600;'>🌊 FloodGuard AI © 2025 | Team Project 💻</p>", unsafe_allow_html=True)
