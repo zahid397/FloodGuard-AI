@@ -2,10 +2,9 @@ streamlit
 pandas
 numpy
 plotly
-folium
-streamlit-folium
 google-generativeai
 gtts
 joblib
 requests
+scikit-learn
 reportlab
