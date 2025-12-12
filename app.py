@@ -12,47 +12,42 @@ import os
 from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen import canvas
 from reportlab.pdfbase import pdfmetrics
-from reportlab.pdfbase.cidfonts import UnicodeCIDFont
+from reportlab.pdfbase.ttfonts import TTFont
 
 # ---------------- PAGE CONFIG ----------------
 st.set_page_config(page_title="FloodGuard AI", page_icon="🌊", layout="wide")
 
-# ---------------- CUSTOM CSS for Messenger-style chat ----------------
+# ---------------- CUSTOM CSS ----------------
 st.markdown("""
-<style>
-/* Chat message containers */
-div[data-testid="stChatMessage"] {
-    border-radius: 12px;
-    padding: 8px 12px;
-    margin: 5px 0;
-    max-width: 75%;
-}
-/* User (you) messages: align right, blue background */
-div[data-testid="stChatMessage"][data-role="user"] {
-    background-color: #0078d7;
-    color: white;
-    margin-left: auto;
-    margin-right: 5px;
-}
-/* Assistant messages: align left, light grey background */
-div[data-testid="stChatMessage"][data-role="assistant"] {
-    background-color: #f1f1f1;
-    color: #0a192f;
-    margin-left: 5px;
-    margin-right: auto;
-}
-/* Input box styling */
-[data-testid="stChatInput"] textarea {
-    border-radius: 20px !important;
-    border: 2px solid #005a9e !important;
-}
-[data-testid="stChatInput"] button {
-    border-radius: 20px !important;
-    background-color: #0078d7 !important;
-    color: white !important;
-}
-</style>
-""", unsafe_allow_html=True)
+<style>  
+div[data-testid="stChatMessage"] {  
+    border-radius: 12px;  
+    padding: 8px 12px;  
+    margin: 5px 0;  
+    max-width: 75%;  
+}  
+div[data-testid="stChatMessage"][data-role="user"] {  
+    background-color: #0078d7;  
+    color: white;  
+    margin-left: auto;  
+    margin-right: 5px;  
+}  
+div[data-testid="stChatMessage"][data-role="assistant"] {  
+    background-color: #f1f1f1;  
+    color: #0a192f;  
+    margin-left: 5px;  
+    margin-right: auto;  
+}  
+[data-testid="stChatInput"] textarea {  
+    border-radius: 20px !important;  
+    border: 2px solid #005a9e !important;  
+}  
+[data-testid="stChatInput"] button {  
+    border-radius: 20px !important;  
+    background-color: #0078d7 !important;  
+    color: white !important;  
+}  
+</style>  """, unsafe_allow_html=True)
 
 # ---------------- HEADER ----------------
 st.markdown("<h1 style='text-align:center;'>🌊 FloodGuard AI – InnovateX Hackathon 2025</h1>", unsafe_allow_html=True)
@@ -92,19 +87,76 @@ def init_gemini():
         pass
     if not key:
         key = os.getenv("GEMINI_API_KEY")
+    
     if not key:
-        st.warning("⚠️ Gemini API key missing.")
         return None
+        
     try:
         genai.configure(api_key=key)
         gmodel = genai.GenerativeModel("gemini-2.5-flash")
-        st.success("✅ Gemini Connected (gemini-2.5-flash)")
         return gmodel
     except Exception as e:
         st.error(f"Gemini init failed: {e}")
         return None
 
 gemini = init_gemini()
+
+# ---------------- 🔥 SMART AI RESPONSE FUNCTION 🔥 ----------------
+def smart_ai_response(user_msg, risk, location, gemini_model):
+    """
+    Bangla + English Flood-Aware Assistant with Panic Detection
+    """
+    if not gemini_model:
+        return "⚠️ AI system is offline. Please stay safe."
+
+    # 1. Detect Bangla usage
+    is_bangla = any('\u0980' <= ch <= '\u09FF' for ch in user_msg)
+
+    # 2. Tone / Panic Detection
+    panic_words = ["help", "sos", "danger", "ভয়", "ডর", "বাঁচাও", "help me", "morlam", "bannya", "dube"]
+    is_panic = any(w.lower() in user_msg.lower() for w in panic_words)
+
+    # 3. Panic Response (Immediate)
+    if is_panic:
+        if is_bangla:
+            return (
+                "🚨 **জরুরী সতর্কতা**\n\n"
+                "দয়া করে শান্ত থাকুন। সাহায্য আসছে।\n"
+                "আপনি যদি খুব বিপদে থাকেন, এক্ষুনি **৯৯৯ (999)** নম্বরে কল করুন।\n"
+                "যত দ্রুত সম্ভব নিরাপদ ও উঁচু স্থানে (যেমন স্কুল বা ছাদ) যাওয়ার চেষ্টা করুন।"
+            )
+        else:
+            return (
+                "🚨 **EMERGENCY ALERT**\n\n"
+                "Please remain calm. Help is available.\n"
+                "If you are in immediate danger, call **999** now.\n"
+                "Move to a safe elevated place (like a roof or shelter) immediately."
+            )
+
+    # 4. Build System Prompt for Gemini
+    system_prompt = f"""
+    You are FloodGuard AI — a disaster management assistant for Bangladesh.
+    
+    CONTEXT:
+    - Current Flood Risk Level: {risk}
+    - User Location: {location}
+    
+    INSTRUCTIONS:
+    - If user writes in Bangla, YOU MUST REPLY IN BANGLA.
+    - If user writes in English, reply in English.
+    - If the Risk is 'High', warn them gently but clearly.
+    - Keep answers SHORT (maximum 3-4 sentences).
+    - Be empathetic and practical.
+    """
+
+    prompt = f"{system_prompt}\nUser Question: {user_msg}"
+
+    try:
+        res = gemini_model.generate_content(prompt)
+        reply = (res.text or "").strip()
+        return reply
+    except Exception as e:
+        return "⚠️ AI temporarily unavailable. Please follow local radio/TV for safety updates."
 
 # ---------------- WEATHER FUNCTION ----------------
 def get_weather(city, api_key, slider_data):
@@ -123,38 +175,38 @@ def get_weather(city, api_key, slider_data):
 def predict_flood(features):
     if model:
         try:
-            df = pd.DataFrame([features],
-                              columns=["rainfall", "humidity", "temperature", "river_level", "pressure"])
+            df = pd.DataFrame([features], columns=["rainfall", "humidity", "temperature", "river_level", "pressure"])
             prob = model.predict_proba(df)[0][1] * 100
             risk = "High" if prob > 70 else "Medium" if prob > 30 else "Low"
             return f"{risk} ({prob:.1f}%)"
-        except Exception as e:
-            st.error(f"Model prediction error: {e}")
-    # fallback logic
+        except Exception:
+            pass
+    # Fallback
     s = (features[0]/100) + (features[3]/8) + (features[1]/100) - (features[2]/40)
     risk = "High" if s > 2 else "Medium" if s > 1 else "Low"
     return f"{risk} (Rule-Based)"
 
 # ---------------- PDF REPORT FUNCTION ----------------
-pdfmetrics.registerFont(UnicodeCIDFont('HeiseiMin-W3'))
 def create_pdf(risk, weather, summary, inputs):
     buf = BytesIO()
     c = canvas.Canvas(buf, pagesize=letter)
-    c.setFont("HeiseiMin-W3", 16)
+    c.setFont("Helvetica-Bold", 16)
     c.drawString(200, 750, "FloodGuard AI Report")
-    c.setFont("HeiseiMin-W3", 12)
-    c.drawString(50, 720, f"📍 Location: {inputs['loc']}")
+    c.setFont("Helvetica", 12)
+    c.drawString(50, 720, f"Location: {inputs['loc']}")
     c.drawString(50, 700, f"Predicted Risk: {risk}")
-    c.drawString(50, 680, f"Temperature: {weather['temp']:.1f}°C")
+    c.drawString(50, 680, f"Temperature: {weather['temp']:.1f} C")
     c.drawString(50, 665, f"Humidity: {weather['hum']}%")
     c.drawString(50, 650, f"Rainfall: {weather['rain']} mm")
-    c.drawString(50, 635, f"River Level: {inputs['level']} m")
-    c.drawString(50, 620, f"Pressure: {inputs['pressure']} hPa")
     if summary:
-        y = 590
-        for line in summary[:600].split("\n"):
-            c.drawString(60, y, line)
-            y -= 15
+        c.drawString(50, 605, "AI Analysis Summary:")
+        safe_summary = ''.join([i if ord(i) < 128 else ' ' for i in summary])
+        text = c.beginText(50, 590)
+        text.setFont("Helvetica", 10)
+        lines = [safe_summary[i:i+80] for i in range(0, len(safe_summary), 80)]
+        for line in lines[:15]:
+            text.textLine(line)
+        c.drawText(text)
     c.save()
     buf.seek(0)
     return buf
@@ -175,7 +227,7 @@ if st.sidebar.button("🔮 Predict Flood Risk", use_container_width=True):
     st.session_state.weather_data = {"temp": t, "hum": h, "rain": r}
     st.session_state.prediction_inputs = {"rain": r, "hum": h, "temp": t, "level": level, "pressure": pressure, "loc": loc}
     st.session_state.risk = predict_flood([r, h, t, level, pressure])
-    st.session_state.ai_summary = None
+    st.session_state.ai_summary = None 
     st.session_state.audio = None
 
 # ---------------- TABS ----------------
@@ -188,81 +240,73 @@ with tab1:
         risk_level = st.session_state.risk.split()[0]
         color = color_map.get(risk_level, "#0a192f")
         st.markdown(f"<h3>📍 {loc} — Predicted Risk: <span style='color:{color};'>{st.session_state.risk}</span></h3>", unsafe_allow_html=True)
+        # Graph logic same as before...
         dates = pd.date_range(datetime.now() - timedelta(days=29), periods=30)
         rain_vals = np.clip(50 + 30*np.sin(np.linspace(0,3,30)) + np.random.normal(0,10,30), 0, 200)
         risk_vals = ["Low" if rv<60 else "Medium" if rv<120 else "High" for rv in rain_vals]
         df = pd.DataFrame({"Date": dates, "Rainfall (mm)": rain_vals, "Risk": risk_vals})
-        fig = px.line(df, x="Date", y="Rainfall (mm)", color="Risk",
-                      color_discrete_map=color_map, title="Rainfall vs Flood Risk Trend (Simulation)")
+        fig = px.line(df, x="Date", y="Rainfall (mm)", color="Risk", color_discrete_map=color_map)
         fig.update_layout(height=300, margin=dict(l=0, r=0, t=40, b=0))
         st.plotly_chart(fig, use_container_width=True)
-        pdf_buf = create_pdf(st.session_state.risk, st.session_state.weather_data,
-                             st.session_state.ai_summary, st.session_state.prediction_inputs)
-        st.download_button("📄 Download Flood Report", data=pdf_buf,
-                           file_name="FloodGuard_Report.pdf", mime="application/pdf")
+        pdf_buf = create_pdf(st.session_state.risk, st.session_state.weather_data, st.session_state.ai_summary, st.session_state.prediction_inputs)
+        st.download_button("📄 Download Report", data=pdf_buf, file_name="Report.pdf", mime="application/pdf")
     else:
-        st.info("⬅️ Set inputs and click Predict Flood Risk")
+        st.info("⬅️ Please click 'Predict Flood Risk'")
 
 with tab2:
-    st.subheader("☁️ Weather")
     w = st.session_state.weather_data
-    st.markdown(f"<div class='weather-box'>📍 {loc} | 🌡️ {w['temp']:.1f}°C | 💧 {w['hum']}% | 🌧️ {w['rain']}mm</div>", unsafe_allow_html=True)
+    st.markdown(f"<div style='padding:20px;background:#f0f2f6;border-radius:10px;text-align:center'><h3>{loc}</h3>🌡️ {w['temp']:.1f}°C | 💧 {w['hum']}% | 🌧️ {w['rain']}mm</div>", unsafe_allow_html=True)
 
 with tab3:
     st.subheader("🤖 AI Safety Tips")
     if st.button("⚡ Generate Tips", use_container_width=True):
         if not gemini:
-            st.error("Gemini not configured.")
+            st.error("Gemini Missing")
         elif st.session_state.risk == "N/A":
-            st.info("Please predict flood risk first.")
+            st.info("Predict risk first.")
         else:
-            with st.spinner("Generating tips..."):
+            with st.spinner("Thinking..."):
                 try:
                     p = st.session_state.prediction_inputs
-                    prompt = (f"Flood risk is {st.session_state.risk} for {p['loc']}. "
-                              f"Provide 2 short Bangla tips then 2 English tips.")
+                    prompt = f"Risk is {st.session_state.risk} at {p['loc']}. Give 2 Bangla and 2 English short safety tips."
                     res = gemini.generate_content(prompt)
-                    txt = (res.text or "").strip()
+                    txt = res.text or ""
                     st.session_state.ai_summary = txt
-                    # bangla lines
                     bangla_lines = [l for l in txt.split("\n") if any('\u0980' <= ch <= '\u09FF' for ch in l)]
                     if bangla_lines:
-                        tts = gTTS("\n".join(bangla_lines[:2])[:150], lang="bn")
+                        tts = gTTS(" ".join(bangla_lines[:2]), lang="bn")
                         buf = BytesIO(); tts.write_to_fp(buf); buf.seek(0)
                         st.session_state.audio = buf.getvalue()
                 except Exception as e:
-                    st.session_state.ai_summary = f"AI Error: {e}"
-    if st.session_state.ai_summary:
-        st.info(st.session_state.ai_summary)
-    if st.session_state.audio:
-        st.audio(st.session_state.audio, format="audio/mp3")
+                    st.session_state.ai_summary = f"Error: {e}"
+    if st.session_state.ai_summary: st.info(st.session_state.ai_summary)
+    if st.session_state.audio: st.audio(st.session_state.audio, format="audio/mp3")
 
 with tab4:
-    st.subheader("💬 Chat Assistant (Bangla + English)")
+    st.subheader("💬 Smart Flood Assistant")
     for m in st.session_state.chat_messages:
         with st.chat_message(m["role"]):
             st.markdown(m["content"])
-    q = st.chat_input("আপনার প্রশ্ন লিখুন / Ask anything…")
+    
+    q = st.chat_input("Ask about flood safety / বন্যা সম্পর্কে জানুন...")
     if q:
         st.session_state.chat_messages.append({"role":"user","content":q})
         with st.chat_message("user"):
             st.markdown(q)
+            
         with st.chat_message("assistant"):
-            if not gemini:
-                reply = "⚠️ Gemini not configured."
-            else:
-                try:
-                    prompt = (f"You are FloodGuard Assistant. Current risk={st.session_state.risk}. {q}")
-                    res = gemini.generate_content(prompt)
-                    reply = (res.text or "").strip()
-                except Exception as e:
-                    reply = f"AI Error: {e}"
-            st.markdown(reply)
-            st.session_state.chat_messages.append({"role":"assistant","content":reply})
+            with st.spinner("AI is thinking..."):
+                # 🔥 HERE IS THE NEW LOGIC INTEGRATION
+                reply = smart_ai_response(
+                    user_msg=q,
+                    risk=st.session_state.risk,
+                    location=loc,
+                    gemini_model=gemini
+                )
+                st.markdown(reply)
+                st.session_state.chat_messages.append({"role":"assistant","content":reply})
 
 with tab5:
     st.markdown("### 🌊 About FloodGuard AI")
-    st.write("AI-powered flood prediction & advisory for Bangladesh. Developed for InnovateX Hackathon 2025.")
-
-st.divider()
-st.markdown("<p style='text-align:center;font-weight:600;'>🌊 FloodGuard AI © 2025 | Team Project 💻</p>", unsafe_allow_html=True)
+    st.write("InnovateX Hackathon 2025 Project.")
+        
