@@ -1,29 +1,48 @@
 # model/train_model.py
 import pandas as pd
 from sklearn.ensemble import RandomForestClassifier
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import classification_report
 import pickle
 import os
 
 def train_model():
-    # Dummy flood dataset
-    data = {
-        "rainfall_mm": [50, 120, 250, 400, 80, 20, 10, 300, 280, 150],
-        "temperature_c": [28, 30, 26, 25, 29, 35, 33, 24, 27, 31],
-        "humidity_percent": [80, 85, 90, 95, 70, 65, 60, 92, 88, 75],
-        "water_level_m": [4.5, 5.0, 7.2, 8.0, 3.5, 2.0, 1.5, 9.0, 6.5, 4.0],
-        "flood_risk": [0, 1, 2, 2, 0, 0, 0, 2, 1, 1],
-    }
 
-    df = pd.DataFrame(data)
+    # === Load CSV Dataset ===
+    df = pd.read_csv("data/flood_training_data.csv")
 
+    print("📂 Dataset Loaded:", df.shape)
+
+    # === Features & Labels ===
     X = df[["rainfall_mm", "temperature_c", "humidity_percent", "water_level_m"]]
     y = df["flood_risk"]
 
-    model = RandomForestClassifier(n_estimators=100, random_state=42)
-    model.fit(X, y)
+    # === Train-Test Split ===
+    X_train, X_test, y_train, y_test = train_test_split(
+        X, y, test_size=0.2, random_state=42
+    )
 
+    # === ML Model (Improved Version) ===
+    model = RandomForestClassifier(
+        n_estimators=300,
+        max_depth=7,
+        min_samples_split=2,
+        random_state=42
+    )
+
+    model.fit(X_train, y_train)
+
+    # === Evaluate Model ===
+    y_pred = model.predict(X_test)
+    print("\n📊 Model Performance Report:\n")
+    print(classification_report(y_test, y_pred))
+
+    # === Save Model to Folder ===
     os.makedirs("model", exist_ok=True)
     with open("model/flood_model.pkl", "wb") as f:
         pickle.dump(model, f)
 
-    print("✅ FloodGuard AI Model trained successfully!")
+    print("\n✅ FloodGuard AI Model trained and saved successfully!")
+
+if __name__ == "__main__":
+    train_model()
