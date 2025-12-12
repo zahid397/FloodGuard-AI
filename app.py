@@ -101,62 +101,66 @@ def init_gemini():
 
 gemini = init_gemini()
 
-# ---------------- 🔥 SMART AI RESPONSE FUNCTION 🔥 ----------------
+# ---------------- 🔥 NEW: VOICE GENERATOR (Step 2) ----------------
+def generate_bangla_voice(text):
+    """
+    Safely generates Bangla voice using gTTS, removing problematic characters.
+    """
+    try:
+        # Filter out characters that might crash gTTS (surrogates)
+        safe_text = "".join([c if ord(c) < 0xD800 else " " for c in text])
+        if not safe_text.strip():
+            return None
+            
+        tts = gTTS(safe_text[:200], lang="bn") # Limit to first 200 chars for speed
+        buf = BytesIO()
+        tts.write_to_fp(buf)
+        buf.seek(0)
+        return buf.getvalue()
+    except Exception as e:
+        print(f"Voice Error: {e}")
+        return None
+
+# ---------------- 🔥 UPDATED: SMART AI RESPONSE (Step 1) ----------------
 def smart_ai_response(user_msg, risk, location, gemini_model):
     """
-    Bangla + English Flood-Aware Assistant with Panic Detection
+    Handles Chat Logic: Panic Detection, Language Enforcement, Context.
     """
     if not gemini_model:
-        return "⚠️ AI system is offline. Please stay safe."
+        return "⚠️ AI system offline. Please stay safe."
 
-    # 1. Detect Bangla usage
+    # Detect Bangla
     is_bangla = any('\u0980' <= ch <= '\u09FF' for ch in user_msg)
 
-    # 2. Tone / Panic Detection
-    panic_words = ["help", "sos", "danger", "ভয়", "ডর", "বাঁচাও", "help me", "morlam", "bannya", "dube"]
-    is_panic = any(w.lower() in user_msg.lower() for w in panic_words)
+    # Panic detection
+    panic_words = ["help", "sos", "danger", "ভয়", "ডর", "বাঁচাও", "help me", "morlam", "mortesi", "bannya", "dube"]
+    if any(w.lower() in user_msg.lower() for w in panic_words):
+        return (
+            "🚨 **জরুরী সতর্কতা!**\n\n"
+            "দয়া করে শান্ত থাকুন।\n"
+            "**৯৯৯** এ কল করুন।\n"
+            "উঁচু বা নিরাপদ স্থানে যান।"
+            if is_bangla else
+            "🚨 **EMERGENCY ALERT!**\n\nCall **999** immediately.\nMove to safe higher ground."
+        )
 
-    # 3. Panic Response (Immediate)
-    if is_panic:
-        if is_bangla:
-            return (
-                "🚨 **জরুরী সতর্কতা**\n\n"
-                "দয়া করে শান্ত থাকুন। সাহায্য আসছে।\n"
-                "আপনি যদি খুব বিপদে থাকেন, এক্ষুনি **৯৯৯ (999)** নম্বরে কল করুন।\n"
-                "যত দ্রুত সম্ভব নিরাপদ ও উঁচু স্থানে (যেমন স্কুল বা ছাদ) যাওয়ার চেষ্টা করুন।"
-            )
-        else:
-            return (
-                "🚨 **EMERGENCY ALERT**\n\n"
-                "Please remain calm. Help is available.\n"
-                "If you are in immediate danger, call **999** now.\n"
-                "Move to a safe elevated place (like a roof or shelter) immediately."
-            )
+    # Language enforcement & System Prompt
+    lang_instruction = "Answer in Bangla only." if is_bangla else "Answer in English only."
 
-    # 4. Build System Prompt for Gemini
-    system_prompt = f"""
-    You are FloodGuard AI — a disaster management assistant for Bangladesh.
-    
-    CONTEXT:
-    - Current Flood Risk Level: {risk}
-    - User Location: {location}
-    
-    INSTRUCTIONS:
-    - If user writes in Bangla, YOU MUST REPLY IN BANGLA.
-    - If user writes in English, reply in English.
-    - If the Risk is 'High', warn them gently but clearly.
-    - Keep answers SHORT (maximum 3-4 sentences).
-    - Be empathetic and practical.
+    system = f"""
+    You are FloodGuard AI.
+    Current Flood Risk: {risk}
+    Location: {location}
+    {lang_instruction}
+    Keep answer under 3 sentences. Be helpful and calm.
     """
 
-    prompt = f"{system_prompt}\nUser Question: {user_msg}"
-
     try:
-        res = gemini_model.generate_content(prompt)
-        reply = (res.text or "").strip()
-        return reply
-    except Exception as e:
-        return "⚠️ AI temporarily unavailable. Please follow local radio/TV for safety updates."
+        res = gemini_model.generate_content(system + "\nUser Question: " + user_msg)
+        text = (res.text or "").strip()
+        return text
+    except:
+        return "⚠️ AI temporarily unavailable. Please follow local news."
 
 # ---------------- WEATHER FUNCTION ----------------
 def get_weather(city, api_key, slider_data):
@@ -181,7 +185,7 @@ def predict_flood(features):
             return f"{risk} ({prob:.1f}%)"
         except Exception:
             pass
-    # Fallback
+    # Fallback Rule-Based Logic
     s = (features[0]/100) + (features[3]/8) + (features[1]/100) - (features[2]/40)
     risk = "High" if s > 2 else "Medium" if s > 1 else "Low"
     return f"{risk} (Rule-Based)"
@@ -198,8 +202,11 @@ def create_pdf(risk, weather, summary, inputs):
     c.drawString(50, 680, f"Temperature: {weather['temp']:.1f} C")
     c.drawString(50, 665, f"Humidity: {weather['hum']}%")
     c.drawString(50, 650, f"Rainfall: {weather['rain']} mm")
+    
+    # PDF Summary (Filtered for PDF safety)
     if summary:
         c.drawString(50, 605, "AI Analysis Summary:")
+        # Only keep ASCII characters for PDF to prevent crash
         safe_summary = ''.join([i if ord(i) < 128 else ' ' for i in summary])
         text = c.beginText(50, 590)
         text.setFont("Helvetica", 10)
@@ -240,7 +247,7 @@ with tab1:
         risk_level = st.session_state.risk.split()[0]
         color = color_map.get(risk_level, "#0a192f")
         st.markdown(f"<h3>📍 {loc} — Predicted Risk: <span style='color:{color};'>{st.session_state.risk}</span></h3>", unsafe_allow_html=True)
-        # Graph logic same as before...
+        
         dates = pd.date_range(datetime.now() - timedelta(days=29), periods=30)
         rain_vals = np.clip(50 + 30*np.sin(np.linspace(0,3,30)) + np.random.normal(0,10,30), 0, 200)
         risk_vals = ["Low" if rv<60 else "Medium" if rv<120 else "High" for rv in rain_vals]
@@ -248,10 +255,11 @@ with tab1:
         fig = px.line(df, x="Date", y="Rainfall (mm)", color="Risk", color_discrete_map=color_map)
         fig.update_layout(height=300, margin=dict(l=0, r=0, t=40, b=0))
         st.plotly_chart(fig, use_container_width=True)
+        
         pdf_buf = create_pdf(st.session_state.risk, st.session_state.weather_data, st.session_state.ai_summary, st.session_state.prediction_inputs)
         st.download_button("📄 Download Report", data=pdf_buf, file_name="Report.pdf", mime="application/pdf")
     else:
-        st.info("⬅️ Please click 'Predict Flood Risk'")
+        st.info("⬅️ Please predict flood risk first.")
 
 with tab2:
     w = st.session_state.weather_data
@@ -265,22 +273,26 @@ with tab3:
         elif st.session_state.risk == "N/A":
             st.info("Predict risk first.")
         else:
-            with st.spinner("Thinking..."):
+            with st.spinner("Generating AI Tips..."):
                 try:
                     p = st.session_state.prediction_inputs
                     prompt = f"Risk is {st.session_state.risk} at {p['loc']}. Give 2 Bangla and 2 English short safety tips."
                     res = gemini.generate_content(prompt)
                     txt = res.text or ""
                     st.session_state.ai_summary = txt
+                    
+                    # 🔥 UPDATED: VOICE GENERATION LOGIC (Step 3)
                     bangla_lines = [l for l in txt.split("\n") if any('\u0980' <= ch <= '\u09FF' for ch in l)]
                     if bangla_lines:
-                        tts = gTTS(" ".join(bangla_lines[:2]), lang="bn")
-                        buf = BytesIO(); tts.write_to_fp(buf); buf.seek(0)
-                        st.session_state.audio = buf.getvalue()
+                        audio_bytes = generate_bangla_voice(" ".join(bangla_lines[:2]))
+                        st.session_state.audio = audio_bytes
                 except Exception as e:
                     st.session_state.ai_summary = f"Error: {e}"
-    if st.session_state.ai_summary: st.info(st.session_state.ai_summary)
-    if st.session_state.audio: st.audio(st.session_state.audio, format="audio/mp3")
+    
+    if st.session_state.ai_summary: 
+        st.info(st.session_state.ai_summary)
+    if st.session_state.audio: 
+        st.audio(st.session_state.audio, format="audio/mp3")
 
 with tab4:
     st.subheader("💬 Smart Flood Assistant")
@@ -294,9 +306,9 @@ with tab4:
         with st.chat_message("user"):
             st.markdown(q)
             
+        # 🔥 UPDATED: CHAT LOGIC (Step 4)
         with st.chat_message("assistant"):
             with st.spinner("AI is thinking..."):
-                # 🔥 HERE IS THE NEW LOGIC INTEGRATION
                 reply = smart_ai_response(
                     user_msg=q,
                     risk=st.session_state.risk,
@@ -309,4 +321,4 @@ with tab4:
 with tab5:
     st.markdown("### 🌊 About FloodGuard AI")
     st.write("InnovateX Hackathon 2025 Project.")
-        
+    
